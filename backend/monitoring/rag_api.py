@@ -93,7 +93,7 @@ def get_rag_usage_for_alert(alert_id):
         retrieved_by_source = {}
         total_docs = 0
         
-        reasoning = alert.get('ai_reasoning', '').lower()
+        reasoning = (alert.get('ai_reasoning') or '').lower()
         
         # MITRE Techniques
         if alert.get('mitre_technique'):
@@ -138,7 +138,7 @@ def get_rag_usage_for_alert(alert_id):
         
         # Business Rules
         sources_queried.append('Business Rules')
-        hostname = alert.get('hostname', '').lower()
+        hostname = (alert.get('hostname') or '').lower()
         departments = ['finance', 'it', 'hr', 'engineering', 'sales']
         department = next((d for d in departments if d in hostname), 'unknown')
         business = rag.query_business_rules(department=department, severity=alert.get('severity', ''))
