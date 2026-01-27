@@ -31,7 +31,7 @@ import time
 
 # Use relative imports since this is imported by app.py which sets up paths correctly
 from .system_monitor import monitor
-from .live_logger import live_logger, _GLOBAL_OPERATIONS, _GLOBAL_LOCK
+from .live_logger import live_logger
 
 monitoring_bp = Blueprint('monitoring', __name__)
 
@@ -114,9 +114,9 @@ def get_recent_logs():
         limit = int(request.args.get('limit', 100))
         category = request.args.get('category', None)
         
-        # Use the global operations deque directly
-        with _GLOBAL_LOCK:
-            all_ops = list(_GLOBAL_OPERATIONS)
+        # Use the live_logger's operations deque
+        with live_logger.lock:
+            all_ops = list(live_logger.operations)
         
         # Filter by category if specified
         if category:
