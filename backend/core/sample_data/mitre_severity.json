@@ -1,0 +1,901 @@
+{
+  "_documentation": {
+    "purpose": "MITRE ATT&CK technique severity with business impact context",
+    "source": "Exported from Supabase mitre_severity table",
+    "export_date": "auto-generated",
+    "total_techniques": 99
+  },
+  "techniques": {
+    "T1001": {
+      "technique_id": "T1001",
+      "technique_name": "Data Obfuscation",
+      "tactic": "Command and Control",
+      "severity": "medium",
+      "average_cost_usd": 670000,
+      "damage_score": 70,
+      "description": "Obfuscate C2 traffic"
+    },
+    "T1003": {
+      "technique_id": "T1003",
+      "technique_name": "OS Credential Dumping",
+      "tactic": "Credential Access",
+      "severity": "critical",
+      "average_cost_usd": 2800000,
+      "damage_score": 85,
+      "description": "Extract OS credentials"
+    },
+    "T1005": {
+      "technique_id": "T1005",
+      "technique_name": "Data from Local System",
+      "tactic": "Collection",
+      "severity": "high",
+      "average_cost_usd": 1200000,
+      "damage_score": 74,
+      "description": "Local file collection"
+    },
+    "T1008": {
+      "technique_id": "T1008",
+      "technique_name": "Fallback Channels",
+      "tactic": "Command and Control",
+      "severity": "medium",
+      "average_cost_usd": 780000,
+      "damage_score": 72,
+      "description": "Backup C2 channels"
+    },
+    "T1011": {
+      "technique_id": "T1011",
+      "technique_name": "Exfiltration Over Other Network Medium",
+      "tactic": "Exfiltration",
+      "severity": "high",
+      "average_cost_usd": 1900000,
+      "damage_score": 88,
+      "description": "Alternative network exfil"
+    },
+    "T1018": {
+      "technique_id": "T1018",
+      "technique_name": "Remote System Discovery",
+      "tactic": "Discovery",
+      "severity": "low",
+      "average_cost_usd": 120000,
+      "damage_score": 33,
+      "description": "Network mapping"
+    },
+    "T1020": {
+      "technique_id": "T1020",
+      "technique_name": "Automated Exfiltration",
+      "tactic": "Exfiltration",
+      "severity": "critical",
+      "average_cost_usd": 2300000,
+      "damage_score": 90,
+      "description": "Automated data theft"
+    },
+    "T1021": {
+      "technique_id": "T1021",
+      "technique_name": "Remote Services",
+      "tactic": "Lateral Movement",
+      "severity": "high",
+      "average_cost_usd": 1500000,
+      "damage_score": 84,
+      "description": "Abuse remote services"
+    },
+    "T1025": {
+      "technique_id": "T1025",
+      "technique_name": "Data from Removable Media",
+      "tactic": "Collection",
+      "severity": "medium",
+      "average_cost_usd": 670000,
+      "damage_score": 65,
+      "description": "Removable media access"
+    },
+    "T1029": {
+      "technique_id": "T1029",
+      "technique_name": "Scheduled Transfer",
+      "tactic": "Exfiltration",
+      "severity": "high",
+      "average_cost_usd": 2000000,
+      "damage_score": 89,
+      "description": "Scheduled data exfiltration"
+    },
+    "T1030": {
+      "technique_id": "T1030",
+      "technique_name": "Data Transfer Size Limits",
+      "tactic": "Exfiltration",
+      "severity": "high",
+      "average_cost_usd": 1600000,
+      "damage_score": 86,
+      "description": "Limit transfer size for evasion"
+    },
+    "T1039": {
+      "technique_id": "T1039",
+      "technique_name": "Data from Network Shared Drive",
+      "tactic": "Collection",
+      "severity": "medium",
+      "average_cost_usd": 890000,
+      "damage_score": 69,
+      "description": "Network share access"
+    },
+    "T1040": {
+      "technique_id": "T1040",
+      "technique_name": "Network Sniffing",
+      "tactic": "Credential Access",
+      "severity": "medium",
+      "average_cost_usd": 890000,
+      "damage_score": 78,
+      "description": "Capture network traffic"
+    },
+    "T1041": {
+      "technique_id": "T1041",
+      "technique_name": "Exfiltration Over C2 Channel",
+      "tactic": "Exfiltration",
+      "severity": "critical",
+      "average_cost_usd": 2500000,
+      "damage_score": 92,
+      "description": "Data theft via C2"
+    },
+    "T1046": {
+      "technique_id": "T1046",
+      "technique_name": "Network Service Discovery",
+      "tactic": "Discovery",
+      "severity": "low",
+      "average_cost_usd": 120000,
+      "damage_score": 34,
+      "description": "Port scanning"
+    },
+    "T1047": {
+      "technique_id": "T1047",
+      "technique_name": "Windows Management Instrumentation",
+      "tactic": "Execution",
+      "severity": "high",
+      "average_cost_usd": 1200000,
+      "damage_score": 71,
+      "description": "WMI execution"
+    },
+    "T1048": {
+      "technique_id": "T1048",
+      "technique_name": "Exfiltration Over Alternative Protocol",
+      "tactic": "Exfiltration",
+      "severity": "critical",
+      "average_cost_usd": 2100000,
+      "damage_score": 90,
+      "description": "Non-standard protocol exfil"
+    },
+    "T1052": {
+      "technique_id": "T1052",
+      "technique_name": "Exfiltration Over Physical Medium",
+      "tactic": "Exfiltration",
+      "severity": "high",
+      "average_cost_usd": 1700000,
+      "damage_score": 87,
+      "description": "Physical media exfil"
+    },
+    "T1053": {
+      "technique_id": "T1053",
+      "technique_name": "Scheduled Task/Job",
+      "tactic": "Execution",
+      "severity": "medium",
+      "average_cost_usd": 780000,
+      "damage_score": 67,
+      "description": "Scheduled execution"
+    },
+    "T1056": {
+      "technique_id": "T1056",
+      "technique_name": "Input Capture",
+      "tactic": "Credential Access",
+      "severity": "high",
+      "average_cost_usd": 1500000,
+      "damage_score": 84,
+      "description": "Keylogging and input monitoring"
+    },
+    "T1059": {
+      "technique_id": "T1059",
+      "technique_name": "Command and Scripting Interpreter",
+      "tactic": "Execution",
+      "severity": "medium",
+      "average_cost_usd": 670000,
+      "damage_score": 65,
+      "description": "PowerShell/CMD abuse"
+    },
+    "T1071": {
+      "technique_id": "T1071",
+      "technique_name": "Application Layer Protocol",
+      "tactic": "Command and Control",
+      "severity": "high",
+      "average_cost_usd": 1200000,
+      "damage_score": 75,
+      "description": "HTTP/DNS C2"
+    },
+    "T1072": {
+      "technique_id": "T1072",
+      "technique_name": "Software Deployment Tools",
+      "tactic": "Execution",
+      "severity": "high",
+      "average_cost_usd": 1100000,
+      "damage_score": 70,
+      "description": "Abuse deployment tools"
+    },
+    "T1074": {
+      "technique_id": "T1074",
+      "technique_name": "Data Staged",
+      "tactic": "Collection",
+      "severity": "medium",
+      "average_cost_usd": 1100000,
+      "damage_score": 72,
+      "description": "Stage data for exfil"
+    },
+    "T1078": {
+      "technique_id": "T1078",
+      "technique_name": "Valid Accounts",
+      "tactic": "Credential Access",
+      "severity": "critical",
+      "average_cost_usd": 15380000,
+      "damage_score": 100,
+      "description": "Use legitimate credentials"
+    },
+    "T1080": {
+      "technique_id": "T1080",
+      "technique_name": "Taint Shared Content",
+      "tactic": "Lateral Movement",
+      "severity": "high",
+      "average_cost_usd": 980000,
+      "damage_score": 79,
+      "description": "Modify shared resources"
+    },
+    "T1082": {
+      "technique_id": "T1082",
+      "technique_name": "System Information Discovery",
+      "tactic": "Discovery",
+      "severity": "low",
+      "average_cost_usd": 105000,
+      "damage_score": 31,
+      "description": "System enumeration"
+    },
+    "T1090": {
+      "technique_id": "T1090",
+      "technique_name": "Proxy",
+      "tactic": "Command and Control",
+      "severity": "medium",
+      "average_cost_usd": 890000,
+      "damage_score": 73,
+      "description": "Proxy for evasion"
+    },
+    "T1091": {
+      "technique_id": "T1091",
+      "technique_name": "Replication Through Removable Media",
+      "tactic": "Initial Access",
+      "severity": "medium",
+      "average_cost_usd": 670000,
+      "damage_score": 76,
+      "description": "USB/removable media spread"
+    },
+    "T1092": {
+      "technique_id": "T1092",
+      "technique_name": "Communication Through Removable Media",
+      "tactic": "Command and Control",
+      "severity": "medium",
+      "average_cost_usd": 890000,
+      "damage_score": 73,
+      "description": "Removable media C2"
+    },
+    "T1095": {
+      "technique_id": "T1095",
+      "technique_name": "Non-Application Layer Protocol",
+      "tactic": "Command and Control",
+      "severity": "medium",
+      "average_cost_usd": 1100000,
+      "damage_score": 76,
+      "description": "Custom protocol C2"
+    },
+    "T1102": {
+      "technique_id": "T1102",
+      "technique_name": "Web Service",
+      "tactic": "Command and Control",
+      "severity": "medium",
+      "average_cost_usd": 1100000,
+      "damage_score": 76,
+      "description": "Abuse web services for C2"
+    },
+    "T1104": {
+      "technique_id": "T1104",
+      "technique_name": "Multi-Stage Channels",
+      "tactic": "Command and Control",
+      "severity": "medium",
+      "average_cost_usd": 890000,
+      "damage_score": 74,
+      "description": "Multi-hop C2"
+    },
+    "T1105": {
+      "technique_id": "T1105",
+      "technique_name": "Ingress Tool Transfer",
+      "tactic": "Command and Control",
+      "severity": "high",
+      "average_cost_usd": 1200000,
+      "damage_score": 77,
+      "description": "Download malicious tools"
+    },
+    "T1106": {
+      "technique_id": "T1106",
+      "technique_name": "Native API",
+      "tactic": "Execution",
+      "severity": "medium",
+      "average_cost_usd": 670000,
+      "damage_score": 64,
+      "description": "Direct API calls"
+    },
+    "T1110": {
+      "technique_id": "T1110",
+      "technique_name": "Brute Force",
+      "tactic": "Credential Access",
+      "severity": "medium",
+      "average_cost_usd": 450000,
+      "damage_score": 75,
+      "description": "Password guessing attacks"
+    },
+    "T1111": {
+      "technique_id": "T1111",
+      "technique_name": "Multi-Factor Authentication Interception",
+      "tactic": "Credential Access",
+      "severity": "medium",
+      "average_cost_usd": 670000,
+      "damage_score": 76,
+      "description": "Intercept MFA codes"
+    },
+    "T1113": {
+      "technique_id": "T1113",
+      "technique_name": "Screen Capture",
+      "tactic": "Collection",
+      "severity": "medium",
+      "average_cost_usd": 780000,
+      "damage_score": 67,
+      "description": "Screenshot collection"
+    },
+    "T1114": {
+      "technique_id": "T1114",
+      "technique_name": "Email Collection",
+      "tactic": "Collection",
+      "severity": "high",
+      "average_cost_usd": 1800000,
+      "damage_score": 79,
+      "description": "Steal emails"
+    },
+    "T1115": {
+      "technique_id": "T1115",
+      "technique_name": "Clipboard Data",
+      "tactic": "Collection",
+      "severity": "medium",
+      "average_cost_usd": 670000,
+      "damage_score": 66,
+      "description": "Steal clipboard"
+    },
+    "T1119": {
+      "technique_id": "T1119",
+      "technique_name": "Automated Collection",
+      "tactic": "Collection",
+      "severity": "medium",
+      "average_cost_usd": 890000,
+      "damage_score": 70,
+      "description": "Automated data gathering"
+    },
+    "T1123": {
+      "technique_id": "T1123",
+      "technique_name": "Audio Capture",
+      "tactic": "Collection",
+      "severity": "high",
+      "average_cost_usd": 1200000,
+      "damage_score": 75,
+      "description": "Record audio"
+    },
+    "T1125": {
+      "technique_id": "T1125",
+      "technique_name": "Video Capture",
+      "tactic": "Collection",
+      "severity": "high",
+      "average_cost_usd": 1100000,
+      "damage_score": 73,
+      "description": "Record video"
+    },
+    "T1129": {
+      "technique_id": "T1129",
+      "technique_name": "Shared Modules",
+      "tactic": "Execution",
+      "severity": "medium",
+      "average_cost_usd": 890000,
+      "damage_score": 69,
+      "description": "Abuse shared libraries"
+    },
+    "T1132": {
+      "technique_id": "T1132",
+      "technique_name": "Data Encoding",
+      "tactic": "Command and Control",
+      "severity": "medium",
+      "average_cost_usd": 780000,
+      "damage_score": 71,
+      "description": "Encode C2 data"
+    },
+    "T1133": {
+      "technique_id": "T1133",
+      "technique_name": "External Remote Services",
+      "tactic": "Initial Access",
+      "severity": "high",
+      "average_cost_usd": 2200000,
+      "damage_score": 88,
+      "description": "VPN/RDP compromise"
+    },
+    "T1185": {
+      "technique_id": "T1185",
+      "technique_name": "Browser Session Hijacking",
+      "tactic": "Collection",
+      "severity": "high",
+      "average_cost_usd": 1100000,
+      "damage_score": 73,
+      "description": "Hijack browser sessions"
+    },
+    "T1187": {
+      "technique_id": "T1187",
+      "technique_name": "Forced Authentication",
+      "tactic": "Credential Access",
+      "severity": "medium",
+      "average_cost_usd": 340000,
+      "damage_score": 72,
+      "description": "Force authentication attempts"
+    },
+    "T1189": {
+      "technique_id": "T1189",
+      "technique_name": "Drive-by Compromise",
+      "tactic": "Initial Access",
+      "severity": "high",
+      "average_cost_usd": 1800000,
+      "damage_score": 87,
+      "description": "Watering hole attacks"
+    },
+    "T1190": {
+      "technique_id": "T1190",
+      "technique_name": "Exploit Public-Facing Application",
+      "tactic": "Initial Access",
+      "severity": "critical",
+      "average_cost_usd": 4450000,
+      "damage_score": 90,
+      "description": "Exploit web applications"
+    },
+    "T1195": {
+      "technique_id": "T1195",
+      "technique_name": "Supply Chain Compromise",
+      "tactic": "Initial Access",
+      "severity": "critical",
+      "average_cost_usd": 4620000,
+      "damage_score": 90,
+      "description": "Compromise supply chain"
+    },
+    "T1199": {
+      "technique_id": "T1199",
+      "technique_name": "Trusted Relationship",
+      "tactic": "Initial Access",
+      "severity": "critical",
+      "average_cost_usd": 2800000,
+      "damage_score": 89,
+      "description": "Abuse trusted relationships"
+    },
+    "T1200": {
+      "technique_id": "T1200",
+      "technique_name": "Hardware Additions",
+      "tactic": "Initial Access",
+      "severity": "medium",
+      "average_cost_usd": 890000,
+      "damage_score": 78,
+      "description": "Malicious hardware"
+    },
+    "T1203": {
+      "technique_id": "T1203",
+      "technique_name": "Exploitation for Client Execution",
+      "tactic": "Execution",
+      "severity": "high",
+      "average_cost_usd": 1200000,
+      "damage_score": 72,
+      "description": "Exploit client applications"
+    },
+    "T1204": {
+      "technique_id": "T1204",
+      "technique_name": "User Execution",
+      "tactic": "Execution",
+      "severity": "medium",
+      "average_cost_usd": 890000,
+      "damage_score": 68,
+      "description": "Trick user to execute"
+    },
+    "T1205": {
+      "technique_id": "T1205",
+      "technique_name": "Traffic Signaling",
+      "tactic": "Command and Control",
+      "severity": "medium",
+      "average_cost_usd": 780000,
+      "damage_score": 72,
+      "description": "Port knocking"
+    },
+    "T1210": {
+      "technique_id": "T1210",
+      "technique_name": "Exploitation of Remote Services",
+      "tactic": "Lateral Movement",
+      "severity": "critical",
+      "average_cost_usd": 1900000,
+      "damage_score": 86,
+      "description": "Exploit remote services"
+    },
+    "T1212": {
+      "technique_id": "T1212",
+      "technique_name": "Exploitation for Credential Access",
+      "tactic": "Credential Access",
+      "severity": "high",
+      "average_cost_usd": 980000,
+      "damage_score": 81,
+      "description": "Exploit to access credentials"
+    },
+    "T1213": {
+      "technique_id": "T1213",
+      "technique_name": "Data from Information Repositories",
+      "tactic": "Exfiltration",
+      "severity": "critical",
+      "average_cost_usd": 2600000,
+      "damage_score": 93,
+      "description": "Access sensitive data repositories"
+    },
+    "T1219": {
+      "technique_id": "T1219",
+      "technique_name": "Remote Access Software",
+      "tactic": "Command and Control",
+      "severity": "high",
+      "average_cost_usd": 1200000,
+      "damage_score": 77,
+      "description": "Legitimate RAT abuse"
+    },
+    "T1482": {
+      "technique_id": "T1482",
+      "technique_name": "Domain Trust Discovery",
+      "tactic": "Discovery",
+      "severity": "low",
+      "average_cost_usd": 180000,
+      "damage_score": 45,
+      "description": "Map domain trusts"
+    },
+    "T1485": {
+      "technique_id": "T1485",
+      "technique_name": "Data Destruction",
+      "tactic": "Impact",
+      "severity": "critical",
+      "average_cost_usd": 3200000,
+      "damage_score": 98,
+      "description": "Permanent data deletion"
+    },
+    "T1486": {
+      "technique_id": "T1486",
+      "technique_name": "Data Encrypted for Impact",
+      "tactic": "Impact",
+      "severity": "critical",
+      "average_cost_usd": 4540000,
+      "damage_score": 100,
+      "description": "Ransomware encryption"
+    },
+    "T1489": {
+      "technique_id": "T1489",
+      "technique_name": "Service Stop",
+      "tactic": "Impact",
+      "severity": "high",
+      "average_cost_usd": 890000,
+      "damage_score": 93,
+      "description": "Stop critical services"
+    },
+    "T1490": {
+      "technique_id": "T1490",
+      "technique_name": "Inhibit System Recovery",
+      "tactic": "Impact",
+      "severity": "critical",
+      "average_cost_usd": 2100000,
+      "damage_score": 98,
+      "description": "Disable recovery mechanisms"
+    },
+    "T1491": {
+      "technique_id": "T1491",
+      "technique_name": "Defacement",
+      "tactic": "Impact",
+      "severity": "high",
+      "average_cost_usd": 2800000,
+      "damage_score": 95,
+      "description": "Modify visual content"
+    },
+    "T1495": {
+      "technique_id": "T1495",
+      "technique_name": "Firmware Corruption",
+      "tactic": "Impact",
+      "severity": "critical",
+      "average_cost_usd": 1800000,
+      "damage_score": 96,
+      "description": "Firmware modification or destruction"
+    },
+    "T1496": {
+      "technique_id": "T1496",
+      "technique_name": "Resource Hijacking",
+      "tactic": "Impact",
+      "severity": "medium",
+      "average_cost_usd": 280000,
+      "damage_score": 85,
+      "description": "Cryptomining or resource abuse"
+    },
+    "T1498": {
+      "technique_id": "T1498",
+      "technique_name": "Network Denial of Service",
+      "tactic": "Impact",
+      "severity": "high",
+      "average_cost_usd": 120000,
+      "damage_score": 92,
+      "description": "Network-level DoS"
+    },
+    "T1499": {
+      "technique_id": "T1499",
+      "technique_name": "Endpoint Denial of Service",
+      "tactic": "Impact",
+      "severity": "high",
+      "average_cost_usd": 450000,
+      "damage_score": 95,
+      "description": "Exhaust system resources"
+    },
+    "T1528": {
+      "technique_id": "T1528",
+      "technique_name": "Steal Application Access Token",
+      "tactic": "Credential Access",
+      "severity": "high",
+      "average_cost_usd": 1200000,
+      "damage_score": 83,
+      "description": "Steal OAuth/API tokens"
+    },
+    "T1530": {
+      "technique_id": "T1530",
+      "technique_name": "Data from Cloud Storage",
+      "tactic": "Collection",
+      "severity": "high",
+      "average_cost_usd": 1500000,
+      "damage_score": 78,
+      "description": "Access cloud storage"
+    },
+    "T1534": {
+      "technique_id": "T1534",
+      "technique_name": "Internal Spearphishing",
+      "tactic": "Lateral Movement",
+      "severity": "medium",
+      "average_cost_usd": 890000,
+      "damage_score": 78,
+      "description": "Internal phishing"
+    },
+    "T1537": {
+      "technique_id": "T1537",
+      "technique_name": "Transfer Data to Cloud Account",
+      "tactic": "Exfiltration",
+      "severity": "high",
+      "average_cost_usd": 1800000,
+      "damage_score": 88,
+      "description": "Cloud account data transfer"
+    },
+    "T1539": {
+      "technique_id": "T1539",
+      "technique_name": "Steal Web Session Cookie",
+      "tactic": "Credential Access",
+      "severity": "high",
+      "average_cost_usd": 980000,
+      "damage_score": 80,
+      "description": "Session hijacking"
+    },
+    "T1550": {
+      "technique_id": "T1550",
+      "technique_name": "Use Alternate Authentication Material",
+      "tactic": "Lateral Movement",
+      "severity": "high",
+      "average_cost_usd": 1300000,
+      "damage_score": 83,
+      "description": "Pass-the-hash/ticket"
+    },
+    "T1552": {
+      "technique_id": "T1552",
+      "technique_name": "Unsecured Credentials",
+      "tactic": "Credential Access",
+      "severity": "high",
+      "average_cost_usd": 1600000,
+      "damage_score": 85,
+      "description": "Access unsecured credential stores"
+    },
+    "T1555": {
+      "technique_id": "T1555",
+      "technique_name": "Credentials from Password Stores",
+      "tactic": "Credential Access",
+      "severity": "high",
+      "average_cost_usd": 1200000,
+      "damage_score": 83,
+      "description": "Extract stored passwords"
+    },
+    "T1556": {
+      "technique_id": "T1556",
+      "technique_name": "Modify Authentication Process",
+      "tactic": "Credential Access",
+      "severity": "critical",
+      "average_cost_usd": 2100000,
+      "damage_score": 87,
+      "description": "Alter authentication mechanisms"
+    },
+    "T1558": {
+      "technique_id": "T1558",
+      "technique_name": "Steal or Forge Kerberos Tickets",
+      "tactic": "Credential Access",
+      "severity": "high",
+      "average_cost_usd": 1400000,
+      "damage_score": 84,
+      "description": "Kerberos ticket manipulation"
+    },
+    "T1559": {
+      "technique_id": "T1559",
+      "technique_name": "Inter-Process Communication",
+      "tactic": "Execution",
+      "severity": "low",
+      "average_cost_usd": 560000,
+      "damage_score": 61,
+      "description": "IPC abuse"
+    },
+    "T1560": {
+      "technique_id": "T1560",
+      "technique_name": "Archive Collected Data",
+      "tactic": "Collection",
+      "severity": "medium",
+      "average_cost_usd": 780000,
+      "damage_score": 68,
+      "description": "Archive before exfil"
+    },
+    "T1561": {
+      "technique_id": "T1561",
+      "technique_name": "Disk Wipe",
+      "tactic": "Impact",
+      "severity": "critical",
+      "average_cost_usd": 2900000,
+      "damage_score": 97,
+      "description": "Disk content destruction"
+    },
+    "T1563": {
+      "technique_id": "T1563",
+      "technique_name": "Remote Service Session Hijacking",
+      "tactic": "Lateral Movement",
+      "severity": "medium",
+      "average_cost_usd": 780000,
+      "damage_score": 76,
+      "description": "Hijack remote sessions"
+    },
+    "T1566": {
+      "technique_id": "T1566",
+      "technique_name": "Phishing",
+      "tactic": "Initial Access",
+      "severity": "critical",
+      "average_cost_usd": 4910000,
+      "damage_score": 95,
+      "description": "Phishing and BEC attacks"
+    },
+    "T1567": {
+      "technique_id": "T1567",
+      "technique_name": "Exfiltration Over Web Service",
+      "tactic": "Exfiltration",
+      "severity": "critical",
+      "average_cost_usd": 2200000,
+      "damage_score": 91,
+      "description": "Data exfil via web services"
+    },
+    "T1568": {
+      "technique_id": "T1568",
+      "technique_name": "Dynamic Resolution",
+      "tactic": "Command and Control",
+      "severity": "medium",
+      "average_cost_usd": 890000,
+      "damage_score": 74,
+      "description": "Dynamic DNS resolution"
+    },
+    "T1569": {
+      "technique_id": "T1569",
+      "technique_name": "System Services",
+      "tactic": "Execution",
+      "severity": "medium",
+      "average_cost_usd": 780000,
+      "damage_score": 66,
+      "description": "Service execution"
+    },
+    "T1570": {
+      "technique_id": "T1570",
+      "technique_name": "Lateral Tool Transfer",
+      "tactic": "Lateral Movement",
+      "severity": "high",
+      "average_cost_usd": 1200000,
+      "damage_score": 82,
+      "description": "Transfer tools laterally"
+    },
+    "T1571": {
+      "technique_id": "T1571",
+      "technique_name": "Non-Standard Port",
+      "tactic": "Command and Control",
+      "severity": "medium",
+      "average_cost_usd": 980000,
+      "damage_score": 75,
+      "description": "Use non-standard ports"
+    },
+    "T1572": {
+      "technique_id": "T1572",
+      "technique_name": "Protocol Tunneling",
+      "tactic": "Command and Control",
+      "severity": "medium",
+      "average_cost_usd": 890000,
+      "damage_score": 74,
+      "description": "Tunnel traffic"
+    },
+    "T1573": {
+      "technique_id": "T1573",
+      "technique_name": "Encrypted Channel",
+      "tactic": "Command and Control",
+      "severity": "medium",
+      "average_cost_usd": 1100000,
+      "damage_score": 76,
+      "description": "Encrypted C2 communications"
+    },
+    "T1580": {
+      "technique_id": "T1580",
+      "technique_name": "Cloud Infrastructure Discovery",
+      "tactic": "Discovery",
+      "severity": "low",
+      "average_cost_usd": 150000,
+      "damage_score": 40,
+      "description": "Map cloud infrastructure"
+    },
+    "T1602": {
+      "technique_id": "T1602",
+      "technique_name": "Data from Configuration Repository",
+      "tactic": "Collection",
+      "severity": "high",
+      "average_cost_usd": 1300000,
+      "damage_score": 76,
+      "description": "Steal configs"
+    },
+    "T1606": {
+      "technique_id": "T1606",
+      "technique_name": "Forge Web Credentials",
+      "tactic": "Credential Access",
+      "severity": "high",
+      "average_cost_usd": 890000,
+      "damage_score": 79,
+      "description": "Create fake web credentials"
+    },
+    "T1609": {
+      "technique_id": "T1609",
+      "technique_name": "Container Administration Command",
+      "tactic": "Execution",
+      "severity": "medium",
+      "average_cost_usd": 890000,
+      "damage_score": 68,
+      "description": "Abuse container commands"
+    },
+    "T1610": {
+      "technique_id": "T1610",
+      "technique_name": "Deploy Container",
+      "tactic": "Execution",
+      "severity": "medium",
+      "average_cost_usd": 780000,
+      "damage_score": 66,
+      "description": "Malicious containers"
+    },
+    "T1613": {
+      "technique_id": "T1613",
+      "technique_name": "Container and Resource Discovery",
+      "tactic": "Discovery",
+      "severity": "low",
+      "average_cost_usd": 160000,
+      "damage_score": 42,
+      "description": "Discover containers"
+    },
+    "T1621": {
+      "technique_id": "T1621",
+      "technique_name": "Multi-Factor Authentication Request Generation",
+      "tactic": "Credential Access",
+      "severity": "high",
+      "average_cost_usd": 1100000,
+      "damage_score": 82,
+      "description": "MFA fatigue attacks"
+    }
+  }
+}

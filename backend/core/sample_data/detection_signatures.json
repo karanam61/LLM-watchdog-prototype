@@ -1,0 +1,410 @@
+{
+  "sql_injection_signatures": {
+    "regex_patterns": [
+      {
+        "name": "time_based_sql",
+        "pattern": "(WAITFOR|DELAY|SLEEP|BENCHMARK)\\s*\\(",
+        "confidence": "high"
+      },
+      {
+        "name": "union_select",
+        "pattern": "UNION\\s+(ALL\\s+)?SELECT",
+        "confidence": "medium"
+      },
+      {
+        "name": "hex_encoded",
+        "pattern": "0x[0-9a-fA-F]{8,}",
+        "confidence": "medium"
+      },
+      {
+        "name": "sql_comments",
+        "pattern": "(--|#|/\\*)",
+        "confidence": "low"
+      }
+    ],
+    "behavioral": [
+      {
+        "name": "slow_query",
+        "threshold": "execution_time > 5s",
+        "baseline": "normal < 100ms"
+      },
+      {
+        "name": "error_responses",
+        "threshold": "multiple 500 errors with SQL messages"
+      }
+    ],
+    "suricata_rules": [
+      "alert http any any -> any any (msg:\"SQL Injection UNION\"; content:\"UNION\"; content:\"SELECT\"; distance:0; sid:1000001;)"
+    ]
+  },
+  
+  "xss_signatures": {
+    "regex_patterns": [
+      {
+        "name": "script_tags",
+        "pattern": "<script[^>]*>.*?</script>",
+        "confidence": "high"
+      },
+      {
+        "name": "event_handlers",
+        "pattern": "on(load|error|click|mouseover)\\s*=",
+        "confidence": "high"
+      },
+      {
+        "name": "javascript_protocol",
+        "pattern": "javascript:",
+        "confidence": "medium"
+      },
+      {
+        "name": "base64_in_url",
+        "pattern": "atob\\(['\"][A-Za-z0-9+/=]+['\"]\\)",
+        "confidence": "high"
+      }
+    ],
+    "behavioral": [
+      {
+        "name": "dom_manipulation",
+        "indicator": "unexpected DOM changes"
+      },
+      {
+        "name": "external_script_load",
+        "indicator": "script loaded from external domain"
+      }
+    ]
+  },
+  
+  "command_injection_signatures": {
+    "regex_patterns": [
+      {
+        "name": "shell_operators",
+        "pattern": "[;|&]\\s*(ls|cat|whoami|id|uname)",
+        "confidence": "high"
+      },
+      {
+        "name": "powershell_encoded",
+        "pattern": "powershell.*-enc[odedcommand]*\\s+[A-Za-z0-9+/=]{20,}",
+        "confidence": "high"
+      },
+      {
+        "name": "command_substitution",
+        "pattern": "`[^`]+`|\\$\\([^)]+\\)",
+        "confidence": "high"
+      },
+      {
+        "name": "environment_manipulation",
+        "pattern": "PATH=|LD_PRELOAD=",
+        "confidence": "medium"
+      }
+    ],
+    "behavioral": [
+      {
+        "name": "unexpected_process_spawn",
+        "indicator": "web app spawning shell commands"
+      },
+      {
+        "name": "unusual_dns_queries",
+        "indicator": "DNS queries containing base64 patterns"
+      }
+    ]
+  },
+  
+  "directory_traversal_signatures": {
+    "regex_patterns": [
+      {
+        "name": "dot_dot_slash",
+        "pattern": "\\.\\./|\\.\\.\\\\ ",
+        "confidence": "high"
+      },
+      {
+        "name": "encoded_traversal",
+        "pattern": "%2e%2e[/\\\\]|\\.\\.%2f|\\.\\.%5c",
+        "confidence": "high"
+      },
+      {
+        "name": "null_byte",
+        "pattern": "%00",
+        "confidence": "high"
+      },
+      {
+        "name": "unicode_slash",
+        "pattern": "\\\\u2216|\\\\u2215",
+        "confidence": "medium"
+      }
+    ],
+    "behavioral": [
+      {
+        "name": "file_access_outside_webroot",
+        "indicator": "access to /etc/passwd, /windows/system32"
+      }
+    ]
+  },
+  
+  "credential_stuffing_signatures": {
+    "splunk_query": "index=windows EventCode=4625 | stats count by Source_Network_Address | where count > 10",
+    "behavioral": [
+      {
+        "name": "rapid_failed_logins",
+        "threshold": "> 10 failures in 5 minutes"
+      },
+      {
+        "name": "multiple_accounts_targeted",
+        "threshold": "> 5 different usernames"
+      },
+      {
+        "name": "automated_pattern",
+        "indicator": "fixed intervals between attempts"
+      }
+    ],
+    "network_indicators": [
+      {
+        "name": "known_botnet_ip",
+        "source": "threat_intelligence"
+      },
+      {
+        "name": "unusual_geolocation",
+        "indicator": "login from unexpected country"
+      }
+    ]
+  },
+  
+  "powershell_malicious_signatures": {
+    "regex_patterns": [
+      {
+        "name": "execution_policy_bypass",
+        "pattern": "-ExecutionPolicy\\s+Bypass",
+        "confidence": "medium"
+      },
+      {
+        "name": "hidden_window",
+        "pattern": "-WindowStyle\\s+Hidden",
+        "confidence": "medium"
+      },
+      {
+        "name": "downloadstring",
+        "pattern": "DownloadString|DownloadFile|WebClient",
+        "confidence": "high"
+      },
+      {
+        "name": "invoke_expression",
+        "pattern": "IEX|Invoke-Expression",
+        "confidence": "high"
+      },
+      {
+        "name": "base64_command",
+        "pattern": "-enc[odedcommand]*\\s+[A-Za-z0-9+/=]{50,}",
+        "confidence": "high"
+      }
+    ],
+    "behavioral": [
+      {
+        "name": "spawned_from_office",
+        "parent": ["winword.exe", "excel.exe", "outlook.exe"],
+        "confidence": "critical"
+      },
+      {
+        "name": "spawned_from_browser",
+        "parent": ["chrome.exe", "firefox.exe", "msedge.exe"],
+        "confidence": "high"
+      }
+    ],
+    "sysmon_event_ids": [1, 3, 7]
+  },
+  
+  "c2_communication_signatures": {
+    "behavioral": [
+      {
+        "name": "beaconing",
+        "pattern": "regular connections to same IP",
+        "interval": "60s +/- 5s",
+        "duration": "> 1 hour"
+      },
+      {
+        "name": "unusual_user_agent",
+        "examples": ["python-requests", "curl", "custom strings"]
+      },
+      {
+        "name": "encrypted_traffic_non_standard_port",
+        "indicator": "TLS on port 8443, 4443, etc"
+      }
+    ],
+    "network_indicators": [
+      {
+        "name": "connection_to_known_c2",
+        "source": "threat_intel_feeds"
+      },
+      {
+        "name": "connection_to_tor_exit",
+        "indicator": "destination in TOR node list"
+      },
+      {
+        "name": "dga_domain",
+        "pattern": "random-looking domain names",
+        "example": "qwerty123.xyz"
+      }
+    ]
+  },
+  
+  "dns_tunneling_signatures": {
+    "regex_patterns": [
+      {
+        "name": "long_subdomain",
+        "pattern": "[a-zA-Z0-9]{20,}\\.",
+        "confidence": "high"
+      },
+      {
+        "name": "base64_in_subdomain",
+        "pattern": "[A-Za-z0-9+/=]{15,}\\.",
+        "confidence": "high"
+      },
+      {
+        "name": "high_entropy",
+        "indicator": "random-looking characters"
+      }
+    ],
+    "behavioral": [
+      {
+        "name": "high_query_frequency",
+        "threshold": "> 100 queries/minute to same domain"
+      },
+      {
+        "name": "unusual_record_types",
+        "types": ["TXT", "NULL", "CNAME chains"]
+      },
+      {
+        "name": "large_responses",
+        "threshold": "DNS response > 512 bytes"
+      }
+    ],
+    "zeek_script": "if (|query| > 50 && contains_base64) alert"
+  },
+  
+  "lateral_movement_signatures": {
+    "behavioral": [
+      {
+        "name": "psexec_multiple_targets",
+        "pattern": "same user, multiple hosts, < 5 minutes"
+      },
+      {
+        "name": "admin_shares_access",
+        "indicator": "C$, ADMIN$ access from workstation"
+      },
+      {
+        "name": "pass_the_hash",
+        "indicator": "NTLM auth without Kerberos ticket"
+      }
+    ],
+    "windows_event_ids": [4624, 4648, 4672, 5140],
+    "sysmon_event_ids": [1, 3, 10, 17, 18]
+  },
+  
+  "phishing_signatures": {
+    "email_indicators": [
+      {
+        "name": "urgent_language",
+        "keywords": ["urgent", "immediately", "verify account", "suspended"]
+      },
+      {
+        "name": "generic_greeting",
+        "examples": ["Dear Customer", "Dear User"]
+      },
+      {
+        "name": "mismatched_urls",
+        "indicator": "display text != actual href"
+      },
+      {
+        "name": "shortened_urls",
+        "domains": ["bit.ly", "tinyurl.com", "goo.gl"]
+      },
+      {
+        "name": "lookalike_domain",
+        "method": "domain_similarity_analysis"
+      }
+    ],
+    "attachment_indicators": [
+      {
+        "name": "macro_enabled",
+        "extensions": [".docm", ".xlsm", ".pptm"]
+      },
+      {
+        "name": "double_extension",
+        "pattern": ".pdf.exe",
+        "confidence": "critical"
+      },
+      {
+        "name": "password_protected",
+        "indicator": "attachment requires password mentioned in email"
+      }
+    ]
+  },
+  
+  "port_scan_signatures": {
+    "behavioral": [
+      {
+        "name": "sequential_ports",
+        "pattern": "connection attempts to ports 1-1024 in sequence"
+      },
+      {
+        "name": "syn_scan",
+        "pattern": "SYN packets without completing handshake"
+      },
+      {
+        "name": "multiple_rejected_connections",
+        "threshold": "> 50 rejected connections in 1 minute"
+      }
+    ],
+    "network_indicators": [
+      {
+        "name": "connection_state_S0",
+        "indicator": "SYN sent, no response (Zeek conn.log)"
+      }
+    ]
+  },
+  
+  "data_exfiltration_signatures": {
+    "behavioral": [
+      {
+        "name": "large_upload",
+        "threshold": "> 1GB outbound",
+        "baseline_check": "compare to user role normal activity"
+      },
+      {
+        "name": "after_hours_transfer",
+        "indicator": "large transfer outside business hours"
+      },
+      {
+        "name": "unusual_destination",
+        "indicator": "transfer to new/unknown external IP"
+      },
+      {
+        "name": "compression_before_transfer",
+        "indicator": "zip/rar creation followed by upload"
+      }
+    ],
+    "protocols": ["FTP", "HTTP POST", "DNS", "ICMP", "Cloud storage APIs"]
+  },
+  
+  "privilege_escalation_signatures": {
+    "windows_event_ids": [4672, 4673, 4674, 4697, 4698],
+    "behavioral": [
+      {
+        "name": "token_manipulation",
+        "indicator": "SeDebugPrivilege enabled"
+      },
+      {
+        "name": "service_creation",
+        "indicator": "new service created by non-admin"
+      },
+      {
+        "name": "scheduled_task",
+        "indicator": "task created with SYSTEM privileges"
+      }
+    ],
+    "file_indicators": [
+      {
+        "name": "mimikatz",
+        "hashes": ["known_mimikatz_hashes"],
+        "strings": ["sekurlsa", "privilege::debug"]
+      }
+    ]
+  }
+}

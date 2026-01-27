@@ -1,0 +1,221 @@
+{
+  "network_attacks": {
+    "dos_ddos": {
+      "type": "denial_of_service",
+      "variant": "slowloris",
+      "method": "partial_http_requests",
+      "target": "connection_pool_exhaustion",
+      "mitre": "T1498"
+    },
+    "mitm": {
+      "type": "interception",
+      "variant": "ssl_stripping_dns_hijack",
+      "method": "downgrade_https_homograph_domain",
+      "target": "credential_theft",
+      "mitre": "T1557"
+    },
+    "csrf": {
+      "type": "request_forgery",
+      "variant": "json_cors_bypass",
+      "method": "fetch_api_custom_headers",
+      "target": "unauthorized_actions",
+      "mitre": "T1189"
+    },
+    "dns_poisoning": {
+      "type": "cache_corruption",
+      "variant": "dns_rebinding",
+      "method": "ttl_switching_public_to_private",
+      "target": "internal_network_access",
+      "mitre": "T1584.002"
+    },
+    "evil_twin": {
+      "type": "rogue_ap",
+      "variant": "captive_portal_harvesting",
+      "method": "fake_login_page",
+      "target": "credential_theft",
+      "mitre": "T1557.002"
+    },
+    "vlan_hopping": {
+      "type": "network_segmentation_bypass",
+      "variant": "double_tagging",
+      "method": "nested_vlan_tags",
+      "target": "restricted_network_access",
+      "mitre": "T1200"
+    },
+    "deauth_attack": {
+      "type": "wifi_disruption",
+      "variant": "automated_deauth_evil_twin",
+      "method": "continuous_deauth_auto_connect",
+      "target": "handshake_capture",
+      "mitre": "T1499.004"
+    },
+    "replay_attack": {
+      "type": "packet_replay",
+      "variant": "session_token_replay",
+      "method": "captured_cookie_jwt_reuse",
+      "target": "session_hijacking",
+      "mitre": "T1550.004"
+    },
+    "rogue_access_point": {
+      "type": "unauthorized_ap",
+      "variant": "raspberry_pi_hidden",
+      "method": "ethernet_to_wifi_bridge",
+      "target": "internal_network_access",
+      "mitre": "T1200"
+    }
+  },
+  
+  "application_attacks": {
+    "sql_injection": {
+      "time_based_blind": {
+        "payload": "'; IF condition WAITFOR DELAY '00:00:05'--",
+        "indicator": "response_time",
+        "mitre": "T1190"
+      },
+      "second_order": {
+        "payload": "admin'-- stored then exploited",
+        "indicator": "data_flow_analysis",
+        "mitre": "T1190"
+      },
+      "json_injection": {
+        "payload": "{\"user\": \"admin' UNION SELECT--\"}",
+        "indicator": "sql_in_json",
+        "mitre": "T1190"
+      }
+    },
+    "xss": {
+      "dom_based": {
+        "payload": "#<img src=x onerror=eval(atob('...'))>",
+        "location": "client_side_only",
+        "mitre": "T1189"
+      },
+      "mutation": {
+        "payload": "<noscript><p title=\"</noscript><img...>",
+        "method": "browser_parser_difference",
+        "mitre": "T1189"
+      },
+      "polyglot": {
+        "payload": "javascript:/*--></title></style>...",
+        "works_in": "multiple_contexts",
+        "mitre": "T1189"
+      }
+    },
+    "directory_traversal": {
+      "double_encoding": {
+        "payload": "..%252f..%252fetc%252fpasswd",
+        "method": "dual_decode",
+        "mitre": "T1083"
+      },
+      "null_byte": {
+        "payload": "../../../../etc/passwd%00.jpg",
+        "method": "string_termination",
+        "mitre": "T1083"
+      },
+      "unicode_bypass": {
+        "payload": "..\\u2216..\\u2216etc\\u2216passwd",
+        "method": "unicode_normalization",
+        "mitre": "T1083"
+      }
+    },
+    "buffer_overflow": {
+      "variant": "heap_spray_rop",
+      "method": "return_oriented_programming",
+      "bypasses": ["dep", "aslr", "stack_canaries"],
+      "mitre": "T1203"
+    },
+    "memory_leak": {
+      "variant": "heartbleed_style",
+      "method": "oversized_response",
+      "result": "info_disclosure",
+      "mitre": "T1499.004"
+    },
+    "pass_the_hash": {
+      "variant": "golden_ticket",
+      "method": "forged_kerberos_tgt",
+      "persistence": "months",
+      "mitre": "T1550.002"
+    }
+  },
+  
+  "social_engineering": {
+    "phishing": {
+      "spear_phishing": {
+        "target": "specific_person",
+        "characteristics": ["context_aware", "perfect_grammar"],
+        "mitre": "T1566.002"
+      },
+      "whaling": {
+        "target": "executives",
+        "method": "authority_urgency",
+        "mitre": "T1566.002"
+      },
+      "ai_generated": {
+        "method": "gpt4_personalized",
+        "detection_difficulty": "very_high",
+        "mitre": "T1566.002"
+      }
+    },
+    "smishing": {
+      "variant": "rcs_phishing",
+      "method": "verified_checkmark_spoofing",
+      "mitre": "T1566.002"
+    },
+    "shoulder_surfing": {
+      "variant": "thermal_camera",
+      "time_window": "30_60_seconds",
+      "mitre": "T1056.002"
+    },
+    "tailgating": {
+      "variant": "badge_cloning",
+      "method": "rfid_clone_plus_follow",
+      "mitre": "T1078.004"
+    },
+    "dumpster_diving": {
+      "variant": "ewaste_recovery",
+      "target": "second_hand_drives",
+      "mitre": "T1589.003"
+    },
+    "watering_hole": {
+      "variant": "supply_chain",
+      "target": "npm_pip_packages",
+      "mitre": "T1189"
+    },
+    "drive_by": {
+      "variant": "malvertising",
+      "vector": "third_party_ads",
+      "mitre": "T1189"
+    },
+    "typosquatting": {
+      "variant": "homograph",
+      "method": "unicode_lookalike",
+      "example": "аpple.com",
+      "mitre": "T1566.002"
+    },
+    "password_spray": {
+      "method": "one_password_many_accounts",
+      "avoids": "account_lockout",
+      "mitre": "T1110.003"
+    }
+  },
+  
+  "advanced_attacks": {
+    "zero_day": {
+      "definition": "unknown_vulnerability",
+      "market_value": "1m_plus",
+      "detection": "behavioral_only",
+      "mitre": "T1203"
+    },
+    "reconnaissance": {
+      "passive": ["google", "linkedin", "whois"],
+      "active": ["port_scan", "dns_queries"],
+      "modern": "osint_ai_analysis",
+      "mitre": "TA0043"
+    },
+    "impersonation": {
+      "variant": "deepfake_voice",
+      "method": "ai_cloned_voice",
+      "real_case": "243k_uk_energy_scam",
+      "mitre": "T1656"
+    }
+  }
+}

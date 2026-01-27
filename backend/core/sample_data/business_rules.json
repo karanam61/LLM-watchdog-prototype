@@ -1,0 +1,470 @@
+{
+  "_documentation": {
+    "purpose": "Business rules and context for AI-powered alert triage",
+    "usage": "Teaches AI about organizational priorities, false positive patterns, and escalation criteria",
+    "company": "TechCorp Solutions - Financial Services"
+  },
+  
+  "department_priority": {
+    "finance": {
+      "priority_level": "critical",
+      "justification": "Handles wire transfers, payroll, financial reporting. Compromise could result in financial fraud.",
+      "average_alert_severity_multiplier": 1.5,
+      "escalation_threshold": "any suspicious activity",
+      "key_assets": ["Wire transfer approval systems", "Financial databases", "SAP"],
+      "typical_users": 4,
+      "high_value_targets": true
+    },
+    
+    "it": {
+      "priority_level": "critical",
+      "justification": "Domain admins with access to entire infrastructure. Compromise = full network compromise.",
+      "average_alert_severity_multiplier": 1.5,
+      "escalation_threshold": "privilege abuse or lateral movement",
+      "key_assets": ["Active Directory", "All servers", "VPN", "Firewalls"],
+      "typical_users": 5,
+      "high_value_targets": true,
+      "note": "IT users have legitimate use of admin tools - context matters"
+    },
+    
+    "hr": {
+      "priority_level": "high",
+      "justification": "Access to PII, SSNs, salary data. GDPR/HIPAA compliance required.",
+      "average_alert_severity_multiplier": 1.2,
+      "escalation_threshold": "data exfiltration or unauthorized access",
+      "key_assets": ["HRIS system", "Benefits portal", "Employee records"],
+      "typical_users": 3,
+      "sensitive_data": ["PII", "SSN", "Health records", "Salary data"],
+      "regulatory_requirements": ["GDPR", "HIPAA"]
+    },
+    
+    "engineering": {
+      "priority_level": "medium-high",
+      "justification": "Access to source code, cloud infrastructure, databases. Supply chain risk.",
+      "average_alert_severity_multiplier": 1.1,
+      "escalation_threshold": "credential theft or supply chain compromise",
+      "key_assets": ["GitHub", "AWS console", "Production databases", "CI/CD"],
+      "typical_users": 4,
+      "high_value_targets": true,
+      "note": "High volume of automation/scripting - many false positives expected"
+    },
+    
+    "sales": {
+      "priority_level": "medium",
+      "justification": "Access to customer data, contracts, pricing. CRM contains competitive intelligence.",
+      "average_alert_severity_multiplier": 1.0,
+      "escalation_threshold": "data exfiltration or unusual customer data access",
+      "key_assets": ["Salesforce", "Customer contracts", "Pricing data"],
+      "typical_users": 4,
+      "sensitive_data": ["Customer PII", "Contract terms", "Pricing strategies"]
+    },
+    
+    "guest_wifi": {
+      "priority_level": "low",
+      "justification": "Isolated network segment. No access to internal resources.",
+      "average_alert_severity_multiplier": 0.5,
+      "escalation_threshold": "attempted internal network access",
+      "note": "High alert volume expected. Most can be auto-closed unless attempting network breach."
+    }
+  },
+  
+  "server_criticality": {
+    "domain_controllers": {
+      "criticality": "critical",
+      "justification": "Authentication for entire organization. Compromise = full breach.",
+      "rpo_hours": 0.5,
+      "rto_hours": 1,
+      "escalation": "immediate",
+      "alert_multiplier": 2.0
+    },
+    
+    "database_servers": {
+      "criticality": "critical",
+      "justification": "Customer data, financial records, transaction history.",
+      "rpo_hours": 1,
+      "rto_hours": 2,
+      "escalation": "immediate",
+      "compliance": ["PCI-DSS", "SOC2"],
+      "alert_multiplier": 1.8
+    },
+    
+    "web_servers": {
+      "criticality": "high",
+      "justification": "Customer-facing. Revenue impact if down. Attack surface for web exploits.",
+      "rpo_hours": 4,
+      "rto_hours": 1,
+      "escalation": "within 30 minutes",
+      "alert_multiplier": 1.3
+    },
+    
+    "api_gateway": {
+      "criticality": "critical",
+      "justification": "All API traffic routes through here. Single point of failure.",
+      "rpo_hours": 1,
+      "rto_hours": 1,
+      "escalation": "immediate",
+      "alert_multiplier": 1.5
+    },
+    
+    "file_server": {
+      "criticality": "high",
+      "justification": "All employee file shares. Business continuity impact.",
+      "rpo_hours": 24,
+      "rto_hours": 4,
+      "escalation": "within 1 hour",
+      "alert_multiplier": 1.2
+    },
+    
+    "backup_server": {
+      "criticality": "critical",
+      "justification": "Disaster recovery depends on this. Ransomware often targets backups.",
+      "rpo_hours": 0,
+      "rto_hours": 2,
+      "escalation": "immediate",
+      "alert_multiplier": 1.8
+    },
+    
+    "dev_test_servers": {
+      "criticality": "low-medium",
+      "justification": "Non-production. Contains test data. Still supply chain risk.",
+      "rpo_hours": 168,
+      "rto_hours": 24,
+      "escalation": "within 4 hours",
+      "alert_multiplier": 0.8
+    }
+  },
+  
+  "time_based_rules": {
+    "after_hours": {
+      "definition": "Outside 8am-6pm EST Monday-Friday",
+      "rules": [
+        {
+          "condition": "Any access from finance department after hours",
+          "action": "escalate_immediately",
+          "reason": "Finance users should not work after hours. Likely compromised credentials."
+        },
+        {
+          "condition": "Any access from HR department after hours",
+          "action": "escalate_immediately",
+          "reason": "HR users should not access PII after hours. Potential data theft."
+        },
+        {
+          "condition": "IT admin activity after hours",
+          "action": "verify_with_it_team",
+          "reason": "May be legitimate maintenance. Verify before escalating."
+        },
+        {
+          "condition": "Engineering activity after hours",
+          "action": "low_priority",
+          "reason": "Engineers often work flexible hours. Normal behavior."
+        },
+        {
+          "condition": "Server access after hours",
+          "action": "escalate_if_not_scheduled_maintenance",
+          "reason": "Check maintenance calendar before escalating."
+        }
+      ]
+    },
+    
+    "business_hours": {
+      "definition": "8am-6pm EST Monday-Friday",
+      "rules": [
+        {
+          "condition": "Unusual activity during business hours",
+          "action": "standard_priority",
+          "reason": "Higher likelihood of legitimate activity. Investigate but not urgent unless high severity."
+        }
+      ]
+    },
+    
+    "peak_hours": {
+      "definition": "10am-2pm EST (peak transaction times)",
+      "rules": [
+        {
+          "condition": "High volume legitimate-looking activity",
+          "action": "reduce_alert_threshold",
+          "reason": "Normal business operations. Higher false positive rate during peak."
+        }
+      ]
+    }
+  },
+  
+  "known_false_positive_patterns": [
+    {
+      "pattern": "certutil executed from IT admin workstation",
+      "source_department": "it",
+      "source_hostname_contains": "IT-ADMIN",
+      "reason": "IT admins legitimately use certutil for certificate management",
+      "auto_close": false,
+      "action": "low_priority_review",
+      "historical_false_positive_rate": "85%"
+    },
+    
+    {
+      "pattern": "PowerShell with ExecutionPolicy Bypass from IT workstation during business hours",
+      "source_department": "it",
+      "time": "business_hours",
+      "reason": "IT admins frequently run PowerShell scripts for automation",
+      "auto_close": false,
+      "action": "verify_script_purpose",
+      "historical_false_positive_rate": "70%"
+    },
+    
+    {
+      "pattern": "High volume AWS API calls from engineering during business hours",
+      "source_department": "engineering",
+      "time": "business_hours",
+      "reason": "DevOps automation, infrastructure scripts, CI/CD pipelines",
+      "auto_close": false,
+      "action": "verify_if_spike_is_unusual_for_this_user",
+      "historical_false_positive_rate": "60%"
+    },
+    
+    {
+      "pattern": "PsExec from IT admin to servers during maintenance window",
+      "source_department": "it",
+      "time": "maintenance_window",
+      "reason": "Legitimate remote administration during scheduled maintenance",
+      "auto_close": false,
+      "action": "verify_maintenance_schedule",
+      "historical_false_positive_rate": "90%"
+    },
+    
+    {
+      "pattern": "Mass file access from backup software",
+      "source_process": "veeam|backup",
+      "reason": "Backup software needs to access all files",
+      "auto_close": true,
+      "action": "suppress_alert",
+      "historical_false_positive_rate": "99%"
+    },
+    
+    {
+      "pattern": "DNS queries to cloud providers (AWS, Azure, GCP)",
+      "destination_domain_contains": ["amazonaws.com", "azure.com", "googleapis.com"],
+      "reason": "Legitimate cloud service usage",
+      "auto_close": true,
+      "action": "suppress_alert",
+      "historical_false_positive_rate": "95%"
+    },
+    
+    {
+      "pattern": "npm/pip package installation during business hours from engineering workstation",
+      "source_department": "engineering",
+      "time": "business_hours",
+      "reason": "Normal development workflow",
+      "auto_close": false,
+      "action": "check_package_reputation_and_name",
+      "historical_false_positive_rate": "80%",
+      "note": "Still check for typosquatting"
+    }
+  ],
+  
+  "automatic_escalation_criteria": [
+    {
+      "condition": "Ransomware detected (T1486)",
+      "action": "escalate_immediately",
+      "notify": ["security_team", "it_director", "ciso"],
+      "reason": "Business-stopping threat. Minutes matter."
+    },
+    
+    {
+      "condition": "Data exfiltration detected from finance or HR",
+      "action": "escalate_immediately",
+      "notify": ["security_team", "legal", "compliance", "ciso"],
+      "reason": "Potential data breach. Regulatory notification may be required."
+    },
+    
+    {
+      "condition": "Credential dumping (Mimikatz) detected",
+      "action": "escalate_immediately",
+      "notify": ["security_team", "it_director"],
+      "reason": "Attacker attempting to steal all credentials. Domain compromise imminent."
+    },
+    
+    {
+      "condition": "Lateral movement to domain controller",
+      "action": "escalate_immediately",
+      "notify": ["security_team", "it_director", "ciso"],
+      "reason": "Domain controller compromise = full network compromise."
+    },
+    
+    {
+      "condition": "Supply chain attack detected (T1195)",
+      "action": "escalate_immediately",
+      "notify": ["security_team", "engineering_lead", "ciso"],
+      "reason": "May affect production systems. Credential rotation required."
+    },
+    
+    {
+      "condition": "After-hours access from finance department",
+      "action": "escalate_within_15_minutes",
+      "notify": ["security_team", "finance_manager"],
+      "reason": "Finance users don't work after hours. Likely compromised."
+    },
+    
+    {
+      "condition": "Multiple failed authentication attempts (>100)",
+      "action": "auto_block_source_ip",
+      "notify": ["security_team"],
+      "reason": "Automated attack. Block and investigate."
+    },
+    
+    {
+      "condition": "Access to backup server",
+      "action": "escalate_immediately",
+      "notify": ["security_team", "it_director"],
+      "reason": "Ransomware often targets backups. Protect disaster recovery capability."
+    }
+  ],
+  
+  "confidence_thresholds": {
+    "auto_close": {
+      "min_confidence": 95,
+      "max_severity": "low",
+      "conditions": "AND known false positive pattern matches"
+    },
+    
+    "low_priority": {
+      "confidence_range": [60, 80],
+      "action": "queue for analyst review within 4 hours"
+    },
+    
+    "standard_priority": {
+      "confidence_range": [80, 90],
+      "action": "queue for analyst review within 1 hour"
+    },
+    
+    "high_priority": {
+      "confidence_range": [90, 100],
+      "severity": ["high", "critical"],
+      "action": "escalate immediately"
+    }
+  },
+  
+  "context_factors": {
+    "increases_confidence": [
+      "After-hours activity from typically 9-5 department",
+      "Activity from high-value target (finance, IT admin, executive)",
+      "Multiple indicators in kill chain (phishing → execution → C2 → exfiltration)",
+      "Known malicious IP/domain from threat intel",
+      "Unusual parent-child process relationship",
+      "Activity targeting critical server",
+      "Encoded/obfuscated commands",
+      "Failed followed by successful authentication"
+    ],
+    
+    "decreases_confidence": [
+      "Activity from IT admin during business hours",
+      "Activity matches scheduled maintenance",
+      "Activity from engineering during normal work hours",
+      "Similar activity seen regularly from this user",
+      "Activity during peak business hours",
+      "Source matches known legitimate automation"
+    ]
+  },
+  
+  "mitre_technique_business_impact": {
+    "note": "Import from mitre_severity.json for complete mapping",
+    "examples": {
+      "T1486": {
+        "name": "Data Encrypted for Impact (Ransomware)",
+        "business_impact": "CRITICAL - Business stops immediately. Average cost $2.5M. Average downtime 21 days.",
+        "priority": "drop everything"
+      },
+      
+      "T1003": {
+        "name": "Credential Dumping",
+        "business_impact": "CRITICAL - All credentials compromised. Full domain reset required. Average cost $500K.",
+        "priority": "immediate escalation"
+      },
+      
+      "T1566": {
+        "name": "Phishing",
+        "business_impact": "HIGH - Initial access vector. If successful, leads to full compromise. Average cost $200K.",
+        "priority": "investigate within 30 minutes"
+      },
+      
+      "T1110": {
+        "name": "Brute Force",
+        "business_impact": "MEDIUM - Usually fails with strong password policy. Can succeed against weak passwords. Average cost $50K if successful.",
+        "priority": "monitor and block"
+      }
+    }
+  },
+  
+  "compliance_requirements": {
+    "PCI-DSS": {
+      "applies_to": ["Finance department", "Database servers", "Web servers", "API gateway"],
+      "requirements": [
+        "Log all access to cardholder data",
+        "Alert on any unauthorized access attempts",
+        "Retain logs for 1 year",
+        "Quarterly vulnerability scans",
+        "Incident response plan tested annually"
+      ],
+      "breach_notification": "Required within 72 hours if cardholder data compromised"
+    },
+    
+    "GDPR": {
+      "applies_to": ["HR department", "Customer data in CRM", "Database servers"],
+      "requirements": [
+        "Data breach notification within 72 hours",
+        "Log all access to personal data",
+        "Right to be forgotten capability",
+        "Data encryption at rest and in transit"
+      ],
+      "breach_notification": "Required within 72 hours. Fines up to €20M or 4% revenue."
+    },
+    
+    "SOC2": {
+      "applies_to": ["All systems"],
+      "requirements": [
+        "Security monitoring and alerting",
+        "Incident response procedures",
+        "Access controls and logging",
+        "Annual audit",
+        "Vendor risk management"
+      ]
+    }
+  },
+  
+  "ai_decision_guidelines": {
+    "when_to_auto_close": [
+      "Confidence >95% that this is false positive",
+      "Matches known false positive pattern",
+      "Severity is low",
+      "No regulatory compliance concerns",
+      "Historical data shows 90%+ false positive rate for this pattern"
+    ],
+    
+    "when_to_escalate_immediately": [
+      "Ransomware detected",
+      "Credential dumping detected",
+      "Data exfiltration from sensitive department",
+      "Lateral movement to critical server",
+      "Supply chain attack",
+      "After-hours access from finance/HR",
+      "Multiple kill chain stages observed",
+      "Known APT indicators"
+    ],
+    
+    "when_to_queue_for_analyst": [
+      "Confidence 60-90%",
+      "Unusual but not clearly malicious",
+      "Requires business context",
+      "Medium severity",
+      "New attack pattern (no historical data)"
+    ],
+    
+    "what_to_include_in_analysis": [
+      "Confidence score (0-100%)",
+      "Evidence list (numbered)",
+      "Business impact assessment",
+      "Recommended action",
+      "Similar past incidents (if any)",
+      "MITRE technique explanation",
+      "Why this matters for this specific organization"
+    ]
+  }
+}

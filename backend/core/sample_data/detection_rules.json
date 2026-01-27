@@ -1,0 +1,223 @@
+{
+  "_documentation": {
+    "purpose": "Detection rules that convert raw logs into alerts",
+    "critical_insight": "Splunk doesn't trigger alerts - it stores logs. We need correlation rules.",
+    "flow": "Raw logs → These rules analyze → Alert created → Sent to our Flask app",
+    "why_this_matters": "Shows we understand SIEM architecture, not just AI"
+  },
+  
+  "rule_types": {
+    "suricata_signatures": "Network packet inspection (IDS)",
+    "splunk_queries": "SPL queries that correlate events",
+    "zeek_scripts": "Zeek intelligence framework",
+    "custom_rules": "Python-based detection logic",
+    "yara_rules": "Malware file signatures"
+  },
+  
+  "credential_stuffing_detection": {
+    "name": "Credential Stuffing Attack",
+    "severity": "high",
+    "mitre": "T1110.001",
+    
+    "splunk_query": {
+      "spl": "index=windows EventCode=4625 | stats count by Source_Network_Address | where count > 10",
+      "explanation": "Counts failed logins by IP, triggers if >10 failures",
+      "lookback": "5 minutes",
+      "creates_alert_when": "count > 10"
+    },
+    
+    "raw_logs_analyzed": {
+      "source": "Windows Event Logs",
+      "event_codes": [4625],
+      "fields_checked": ["Source_Network_Address", "Account_Name", "Failure_Reason"]
+    },
+    
+    "alert_output": {
+      "alert_name": "Multiple Failed Login Attempts",
+      "description": "127 failed login attempts from 203.0.113.50 in 2 minutes",
+      "severity": "high",
+      "mitre_technique": "T1110.001",
+      "source_ip": "203.0.113.50",
+      "recommended_actions": ["Block IP", "Review affected accounts"]
+    }
+  },
+  
+  "powershell_suspicious_execution": {
+    "name": "Suspicious PowerShell Execution",
+    "severity": "high",
+    "mitre": "T1059.001",
+    
+    "splunk_query": {
+      "spl": "index=sysmon EventCode=1 Image=\"*powershell.exe\" ParentImage=\"*winword.exe\" | table CommandLine, User, ComputerName",
+      "explanation": "PowerShell spawned from Word = likely macro attack",
+      "creates_alert_when": "ParentImage is Office app"
+    },
+    
+    "raw_logs_analyzed": {
+      "source": "Sysmon Process Creation (Event ID 1)",
+      "fields_checked": ["Image", "ParentImage", "CommandLine"]
+    },
+    
+    "alert_output": {
+      "alert_name": "PowerShell Spawned from Word",
+      "description": "powershell.exe with suspicious parameters launched from WINWORD.EXE",
+      "severity": "high",
+      "mitre_technique": "T1059.001",
+      "process": "powershell.exe",
+      "parent": "WINWORD.EXE",
+      "user": "john.doe"
+    }
+  },
+  
+  "data_exfiltration_detection": {
+    "name": "Large Data Transfer",
+    "severity": "medium",
+    "mitre": "T1041",
+    
+    "splunk_query": {
+      "spl": "index=zeek sourcetype=conn | stats sum(resp_bytes) as total_bytes by id.orig_h, id.resp_h | where total_bytes > 1073741824",
+      "explanation": "Sum bytes transferred, alert if >1GB to external IP",
+      "lookback": "1 hour",
+      "creates_alert_when": "total_bytes > 1GB AND dest_ip is external"
+    },
+    
+    "raw_logs_analyzed": {
+      "source": "Zeek conn.log",
+      "fields_checked": ["id.orig_h", "id.resp_h", "resp_bytes", "duration"]
+    },
+    
+    "baseline_check": {
+      "user": "david.kumar (data analyst)",
+      "normal_activity": "100-500MB exports daily",
+      "this_activity": "1.2GB in 1 hour",
+      "verdict": "Above baseline but within role expectations"
+    },
+    
+    "alert_output": {
+      "alert_name": "Unusual Data Transfer Volume",
+      "description": "1.2GB transferred to external IP in 1 hour",
+      "severity": "medium",
+      "source_user": "david.kumar",
+      "dest_ip": "198.51.100.25"
+    }
+  },
+  
+  "dns_tunneling_detection": {
+    "name": "DNS Tunneling",
+    "severity": "high",
+    "mitre": "T1048.003",
+    
+    "suricata_rule": {
+      "rule": "alert dns any any -> any any (msg:\"Possible DNS Tunneling\"; dns_query; content:\".attacker.com\"; pcre:\"/[a-zA-Z0-9]{20,}\\.attacker\\.com/\"; sid:1000002;)",
+      "explanation": "Long subdomain with base64-like pattern = data exfiltration"
+    },
+    
+    "zeek_script": {
+      "script": "if (|query| > 50 && query contains base64_chars) { alert }",
+      "explanation": "Zeek checks DNS query length and character patterns"
+    },
+    
+    "raw_logs_analyzed": {
+      "source": "Zeek dns.log",
+      "fields_checked": ["query", "qtype", "answers", "rejected"]
+    },
+    
+    "alert_output": {
+      "alert_name": "DNS Tunneling Detected",
+      "description": "Suspicious DNS queries with encoded data",
+      "severity": "high",
+      "domain": "ZXhmaWx0cmF0ZWRkYXRh.evil.com",
+      "source_ip": "10.20.1.45"
+    }
+  },
+  
+  "lateral_movement_detection": {
+    "name": "Lateral Movement (PsExec)",
+    "severity": "critical",
+    "mitre": "T1021.002",
+    
+    "splunk_query": {
+      "spl": "index=sysmon EventCode=1 Image=\"*psexec.exe\" | transaction User maxspan=5m | where eventcount > 3",
+      "explanation": "PsExec used on multiple hosts within 5 minutes",
+      "creates_alert_when": "Same user, multiple targets, short timespan"
+    },
+    
+    "raw_logs_analyzed": {
+      "source": "Sysmon Event ID 1 + Windows Event ID 4688",
+      "fields_checked": ["Image", "CommandLine", "User", "TargetComputer"]
+    },
+    
+    "alert_output": {
+      "alert_name": "Lateral Movement via PsExec",
+      "description": "psexec.exe executed on 5 different hosts in 3 minutes",
+      "severity": "critical",
+      "user": "admin",
+      "targets": ["WEB-SERVER-01", "DB-SERVER-01", "FILE-SERVER-01"]
+    }
+  },
+  
+  "beaconing_detection": {
+    "name": "C2 Beaconing",
+    "severity": "critical",
+    "mitre": "T1071.001",
+    
+    "splunk_query": {
+      "spl": "index=zeek sourcetype=conn | transaction id.orig_h, id.resp_h maxpause=5m | where duration > 3600 AND eventcount > 100",
+      "explanation": "Regular connections to same external IP for extended period",
+      "pattern": "Connection every ~60 seconds for hours = C2 beacon"
+    },
+    
+    "behavioral_analysis": {
+      "normal": "Web browsing: random intervals, various destinations",
+      "malicious": "C2: fixed interval (60s ±5s), single destination, small payloads"
+    },
+    
+    "alert_output": {
+      "alert_name": "Possible C2 Beaconing",
+      "description": "Regular connections to 203.0.113.50 every 58-62 seconds for 2 hours",
+      "severity": "critical",
+      "source_ip": "10.20.1.45",
+      "dest_ip": "203.0.113.50"
+    }
+  },
+  
+  "our_detection_pipeline": {
+    "step_1": {
+      "name": "Log Collection",
+      "sources": ["Zeek", "Suricata", "Sysmon", "Windows Events"],
+      "storage": "Splunk (or our Supabase for demo)"
+    },
+    
+    "step_2": {
+      "name": "Rule Evaluation",
+      "engine": "Splunk correlation searches OR our custom Python rules",
+      "frequency": "Real-time for critical, every 5 min for others"
+    },
+    
+    "step_3": {
+      "name": "Alert Creation",
+      "format": "JSON alert with severity, MITRE, description",
+      "destination": "Flask app.py /api/alerts endpoint"
+    },
+    
+    "step_4": {
+      "name": "AI Analysis",
+      "process": "InputGuard → RAG context → AI analysis → OutputGuard",
+      "result": "Verdict, confidence, recommended actions"
+    }
+  },
+  
+  "for_our_demo": {
+    "approach": "Simulate the detection layer",
+    "what_we_build": {
+      "option_1": "Python script that reads raw logs → applies these rules → creates alerts",
+      "option_2": "Pre-generated alerts (already processed by 'detection engine')",
+      "recommended": "Option 2 for time - show we understand the flow, don't need to build full SIEM"
+    },
+    
+    "in_interviews": {
+      "you_say": "In production, Splunk correlation searches analyze raw logs and trigger alerts. For this demo, I'm simulating that with pre-generated alerts that follow real detection logic.",
+      "shows": "You understand SIEM architecture, focused on AI layer (your value-add)"
+    }
+  }
+}

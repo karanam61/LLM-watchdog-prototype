@@ -1,0 +1,784 @@
+{
+  "_comment": "THIS FILE CONTAINS REAL DATA - NEVER SHARE PUBLICLY",
+  "_documentation": {
+    "purpose": "Complete company infrastructure for realistic alert generation",
+    "usage": "Tokenize all sensitive fields before storing in ChromaDB",
+    "criticality_levels": {
+      "critical": "Business-stopping impact if compromised",
+      "high": "Significant business disruption",
+      "medium": "Moderate impact, can operate with degradation",
+      "low": "Minimal business impact"
+    }
+  },
+  
+  "company_info": {
+    "name": "TechCorp Solutions",
+    "industry": "Financial Services & Technology",
+    "size": "250 employees",
+    "headquarters": "New York, NY",
+    "compliance_requirements": ["SOC2", "PCI-DSS", "GDPR", "HIPAA"]
+  },
+  
+  "network_topology": {
+    "subnets": {
+      "finance_vlan": {
+        "cidr": "10.20.1.0/24",
+        "description": "Finance department - handles wire transfers, payroll",
+        "criticality": "critical",
+        "internet_access": "restricted",
+        "monitoring": "enhanced"
+      },
+      "it_vlan": {
+        "cidr": "10.20.2.0/24",
+        "description": "IT infrastructure management",
+        "criticality": "critical",
+        "internet_access": "full",
+        "monitoring": "enhanced"
+      },
+      "engineering_vlan": {
+        "cidr": "10.20.3.0/24",
+        "description": "Software development team",
+        "criticality": "high",
+        "internet_access": "full",
+        "monitoring": "standard"
+      },
+      "hr_vlan": {
+        "cidr": "10.20.4.0/24",
+        "description": "HR - employee records, benefits",
+        "criticality": "high",
+        "internet_access": "restricted",
+        "monitoring": "enhanced"
+      },
+      "sales_vlan": {
+        "cidr": "10.20.5.0/24",
+        "description": "Sales team",
+        "criticality": "medium",
+        "internet_access": "full",
+        "monitoring": "standard"
+      },
+      "guest_wifi": {
+        "cidr": "10.20.100.0/24",
+        "description": "Guest and contractor access",
+        "criticality": "low",
+        "internet_access": "isolated",
+        "monitoring": "basic"
+      },
+      "dmz": {
+        "cidr": "10.20.200.0/24",
+        "description": "Public-facing services",
+        "criticality": "high",
+        "internet_access": "exposed",
+        "monitoring": "enhanced"
+      },
+      "server_vlan": {
+        "cidr": "10.20.10.0/24",
+        "description": "Production servers and databases",
+        "criticality": "critical",
+        "internet_access": "restricted",
+        "monitoring": "enhanced"
+      }
+    }
+  },
+  
+  "employees": [
+    {
+      "real_name": "john.doe",
+      "real_email": "john.doe@techcorp.com",
+      "real_ip": "10.20.1.45",
+      "real_hostname": "FINANCE-LAPTOP-01",
+      "metadata": {
+        "department": "finance",
+        "role": "finance_manager",
+        "title": "Finance Manager",
+        "work_hours": "9am-6pm EST Monday-Friday",
+        "work_pattern": "office_based",
+        "high_value_target": true,
+        "access_level": "wire_transfer_approval",
+        "privileged_access": ["Financial systems", "SAP", "Wire transfer portal"],
+        "typical_behavior": {
+          "daily_logins": "8-10",
+          "file_access": "high",
+          "email_volume": "50-80/day",
+          "common_destinations": ["bank_portal", "sap_system"]
+        },
+        "why_critical": "Approves wire transfers up to $5M, access to all financial records"
+      }
+    },
+    {
+      "real_name": "sarah.smith",
+      "real_email": "sarah.smith@techcorp.com",
+      "real_ip": "10.20.2.10",
+      "real_hostname": "IT-ADMIN-WORKSTATION",
+      "metadata": {
+        "department": "it",
+        "role": "it_admin",
+        "title": "Senior IT Administrator",
+        "work_hours": "24/7 on-call",
+        "work_pattern": "hybrid",
+        "high_value_target": true,
+        "access_level": "domain_admin",
+        "privileged_access": ["Active Directory", "All servers", "VPN", "Firewall"],
+        "typical_behavior": {
+          "daily_logins": "15-25",
+          "file_access": "very_high",
+          "email_volume": "30-50/day",
+          "common_destinations": ["all_servers", "cloud_console", "monitoring"]
+        },
+        "why_critical": "Domain admin rights, can access any system"
+      }
+    },
+    {
+      "real_name": "mike.johnson",
+      "real_email": "mike.johnson@techcorp.com",
+      "real_ip": "10.20.4.23",
+      "real_hostname": "HR-DESKTOP-03",
+      "metadata": {
+        "department": "hr",
+        "role": "hr_coordinator",
+        "title": "HR Coordinator",
+        "work_hours": "9am-5pm EST Monday-Friday",
+        "work_pattern": "office_based",
+        "high_value_target": false,
+        "access_level": "employee_records",
+        "privileged_access": ["HRIS system", "Benefits portal"],
+        "typical_behavior": {
+          "daily_logins": "5-8",
+          "file_access": "medium",
+          "email_volume": "40-60/day",
+          "common_destinations": ["hris", "benefits_portal"]
+        },
+        "why_critical": "Access to PII, SSNs, salary data"
+      }
+    },
+    {
+      "real_name": "emily.chen",
+      "real_email": "emily.chen@techcorp.com",
+      "real_ip": "10.20.1.52",
+      "real_hostname": "FINANCE-LAPTOP-02",
+      "metadata": {
+        "department": "finance",
+        "role": "financial_analyst",
+        "title": "Senior Financial Analyst",
+        "work_hours": "8am-6pm EST Monday-Friday",
+        "work_pattern": "office_based",
+        "high_value_target": true,
+        "access_level": "financial_reporting",
+        "privileged_access": ["Financial databases", "BI tools", "SAP read-only"],
+        "typical_behavior": {
+          "daily_logins": "6-10",
+          "file_access": "high",
+          "email_volume": "30-50/day",
+          "common_destinations": ["financial_db", "tableau", "excel_heavy"]
+        },
+        "why_critical": "Access to quarterly earnings, M&A data"
+      }
+    },
+    {
+      "real_name": "david.kumar",
+      "real_email": "david.kumar@techcorp.com",
+      "real_ip": "10.20.2.15",
+      "real_hostname": "IT-ENG-WORKSTATION-01",
+      "metadata": {
+        "department": "it",
+        "role": "security_analyst",
+        "title": "Security Analyst",
+        "work_hours": "9am-6pm EST Monday-Friday",
+        "work_pattern": "hybrid",
+        "high_value_target": true,
+        "access_level": "security_tools",
+        "privileged_access": ["SIEM", "EDR console", "Firewall logs", "IDS/IPS"],
+        "typical_behavior": {
+          "daily_logins": "10-15",
+          "file_access": "high",
+          "email_volume": "20-40/day",
+          "common_destinations": ["siem", "edr", "threat_intel"]
+        },
+        "why_critical": "Access to security tools, can disable monitoring"
+      }
+    },
+    {
+      "real_name": "lisa.martinez",
+      "real_email": "lisa.martinez@techcorp.com",
+      "real_ip": "10.20.5.30",
+      "real_hostname": "SALES-LAPTOP-01",
+      "metadata": {
+        "department": "sales",
+        "role": "vp_sales",
+        "title": "VP of Sales",
+        "work_hours": "8am-7pm EST Monday-Friday",
+        "work_pattern": "remote_frequent",
+        "high_value_target": true,
+        "access_level": "crm_full",
+        "privileged_access": ["Salesforce admin", "Customer contracts", "Pricing data"],
+        "typical_behavior": {
+          "daily_logins": "8-12",
+          "file_access": "high",
+          "email_volume": "100-150/day",
+          "common_destinations": ["salesforce", "email_heavy", "zoom"]
+        },
+        "why_critical": "Access to all customer data, pricing strategies"
+      }
+    },
+    {
+      "real_name": "james.wilson",
+      "real_email": "james.wilson@techcorp.com",
+      "real_ip": "10.20.3.45",
+      "real_hostname": "DEV-WORKSTATION-01",
+      "metadata": {
+        "department": "engineering",
+        "role": "engineering_lead",
+        "title": "Engineering Lead",
+        "work_hours": "10am-7pm EST Monday-Friday",
+        "work_pattern": "hybrid",
+        "high_value_target": true,
+        "access_level": "production_deploy",
+        "privileged_access": ["GitHub admin", "AWS console", "Production database", "CI/CD"],
+        "typical_behavior": {
+          "daily_logins": "12-18",
+          "file_access": "very_high",
+          "email_volume": "40-70/day",
+          "common_destinations": ["github", "aws", "prod_db", "slack"]
+        },
+        "why_critical": "Can deploy to production, access source code"
+      }
+    },
+    {
+      "real_name": "amanda.lee",
+      "real_email": "amanda.lee@techcorp.com",
+      "real_ip": "10.20.4.15",
+      "real_hostname": "HR-LAPTOP-01",
+      "metadata": {
+        "department": "hr",
+        "role": "hr_director",
+        "title": "HR Director",
+        "work_hours": "8am-6pm EST Monday-Friday",
+        "work_pattern": "office_based",
+        "high_value_target": true,
+        "access_level": "hr_admin",
+        "privileged_access": ["HRIS admin", "Payroll system", "Benefits admin"],
+        "typical_behavior": {
+          "daily_logins": "6-10",
+          "file_access": "high",
+          "email_volume": "60-90/day",
+          "common_destinations": ["hris", "payroll", "benefits"]
+        },
+        "why_critical": "Full access to all employee data, compensation"
+      }
+    },
+    {
+      "real_name": "robert.taylor",
+      "real_email": "robert.taylor@techcorp.com",
+      "real_ip": "10.20.2.22",
+      "real_hostname": "IT-ENG-WORKSTATION-02",
+      "metadata": {
+        "department": "it",
+        "role": "network_engineer",
+        "title": "Network Engineer",
+        "work_hours": "9am-6pm EST Monday-Friday",
+        "work_pattern": "office_based",
+        "high_value_target": true,
+        "access_level": "network_admin",
+        "privileged_access": ["Firewall", "Switches", "Routers", "VPN"],
+        "typical_behavior": {
+          "daily_logins": "8-12",
+          "file_access": "medium",
+          "email_volume": "20-35/day",
+          "common_destinations": ["firewall_mgmt", "switch_config", "monitoring"]
+        },
+        "why_critical": "Can change firewall rules, network segmentation"
+      }
+    },
+    {
+      "real_name": "jennifer.davis",
+      "real_email": "jennifer.davis@techcorp.com",
+      "real_ip": "10.20.1.67",
+      "real_hostname": "FINANCE-LAPTOP-03",
+      "metadata": {
+        "department": "finance",
+        "role": "controller",
+        "title": "Controller",
+        "work_hours": "8am-7pm EST Monday-Friday",
+        "work_pattern": "office_based",
+        "high_value_target": true,
+        "access_level": "financial_admin",
+        "privileged_access": ["SAP admin", "Financial systems", "Banking portal"],
+        "typical_behavior": {
+          "daily_logins": "10-15",
+          "file_access": "very_high",
+          "email_volume": "70-100/day",
+          "common_destinations": ["sap", "banking", "financial_reports"]
+        },
+        "why_critical": "Final approval authority, access to all financial data"
+      }
+    },
+    {
+      "real_name": "kevin.brown",
+      "real_email": "kevin.brown@techcorp.com",
+      "real_ip": "10.20.3.52",
+      "real_hostname": "DEV-WORKSTATION-02",
+      "metadata": {
+        "department": "engineering",
+        "role": "senior_developer",
+        "title": "Senior Software Developer",
+        "work_hours": "10am-7pm EST Monday-Friday",
+        "work_pattern": "remote_frequent",
+        "high_value_target": false,
+        "access_level": "development",
+        "privileged_access": ["GitHub", "Dev environment", "Staging database"],
+        "typical_behavior": {
+          "daily_logins": "8-12",
+          "file_access": "high",
+          "email_volume": "25-40/day",
+          "common_destinations": ["github", "dev_env", "slack"]
+        },
+        "why_critical": "Access to source code, can introduce vulnerabilities"
+      }
+    },
+    {
+      "real_name": "michelle.garcia",
+      "real_email": "michelle.garcia@techcorp.com",
+      "real_ip": "10.20.5.42",
+      "real_hostname": "SALES-LAPTOP-02",
+      "metadata": {
+        "department": "sales",
+        "role": "account_executive",
+        "title": "Senior Account Executive",
+        "work_hours": "9am-6pm EST Monday-Friday",
+        "work_pattern": "remote_frequent",
+        "high_value_target": false,
+        "access_level": "crm_standard",
+        "privileged_access": ["Salesforce", "Customer portal"],
+        "typical_behavior": {
+          "daily_logins": "6-10",
+          "file_access": "medium",
+          "email_volume": "80-120/day",
+          "common_destinations": ["salesforce", "zoom", "linkedin"]
+        },
+        "why_critical": "Access to customer data, contracts"
+      }
+    },
+    {
+      "real_name": "christopher.moore",
+      "real_email": "christopher.moore@techcorp.com",
+      "real_ip": "10.20.2.30",
+      "real_hostname": "IT-HELPDESK-01",
+      "metadata": {
+        "department": "it",
+        "role": "helpdesk",
+        "title": "IT Help Desk Technician",
+        "work_hours": "8am-5pm EST Monday-Friday",
+        "work_pattern": "office_based",
+        "high_value_target": false,
+        "access_level": "standard_support",
+        "privileged_access": ["Local admin", "Password resets", "Ticket system"],
+        "typical_behavior": {
+          "daily_logins": "6-8",
+          "file_access": "low",
+          "email_volume": "30-50/day",
+          "common_destinations": ["ticket_system", "remote_support"]
+        },
+        "why_critical": "Can reset passwords, potential social engineering target"
+      }
+    },
+    {
+      "real_name": "jessica.anderson",
+      "real_email": "jessica.anderson@techcorp.com",
+      "real_ip": "10.20.1.78",
+      "real_hostname": "FINANCE-LAPTOP-04",
+      "metadata": {
+        "department": "finance",
+        "role": "financial_analyst",
+        "title": "Financial Analyst",
+        "work_hours": "9am-6pm EST Monday-Friday",
+        "work_pattern": "office_based",
+        "high_value_target": false,
+        "access_level": "financial_reporting",
+        "privileged_access": ["Financial databases", "BI tools"],
+        "typical_behavior": {
+          "daily_logins": "5-8",
+          "file_access": "medium",
+          "email_volume": "25-40/day",
+          "common_destinations": ["financial_db", "excel"]
+        },
+        "why_critical": "Access to financial forecasts"
+      }
+    },
+    {
+      "real_name": "daniel.thomas",
+      "real_email": "daniel.thomas@techcorp.com",
+      "real_ip": "10.20.3.63",
+      "real_hostname": "DEV-WORKSTATION-03",
+      "metadata": {
+        "department": "engineering",
+        "role": "developer",
+        "title": "Software Developer",
+        "work_hours": "10am-7pm EST Monday-Friday",
+        "work_pattern": "hybrid",
+        "high_value_target": false,
+        "access_level": "development",
+        "privileged_access": ["GitHub", "Dev environment"],
+        "typical_behavior": {
+          "daily_logins": "8-12",
+          "file_access": "high",
+          "email_volume": "20-35/day",
+          "common_destinations": ["github", "dev_env"]
+        },
+        "why_critical": "Access to source code"
+      }
+    },
+    {
+      "real_name": "rachel.white",
+      "real_email": "rachel.white@techcorp.com",
+      "real_ip": "10.20.4.31",
+      "real_hostname": "HR-DESKTOP-02",
+      "metadata": {
+        "department": "hr",
+        "role": "hr_coordinator",
+        "title": "HR Coordinator",
+        "work_hours": "9am-5pm EST Monday-Friday",
+        "work_pattern": "office_based",
+        "high_value_target": false,
+        "access_level": "employee_records",
+        "privileged_access": ["HRIS system"],
+        "typical_behavior": {
+          "daily_logins": "5-8",
+          "file_access": "medium",
+          "email_volume": "40-60/day",
+          "common_destinations": ["hris"]
+        },
+        "why_critical": "Access to employee PII"
+      }
+    },
+    {
+      "real_name": "matthew.harris",
+      "real_email": "matthew.harris@techcorp.com",
+      "real_ip": "10.20.5.55",
+      "real_hostname": "SALES-LAPTOP-03",
+      "metadata": {
+        "department": "sales",
+        "role": "account_executive",
+        "title": "Account Executive",
+        "work_hours": "9am-6pm EST Monday-Friday",
+        "work_pattern": "remote_frequent",
+        "high_value_target": false,
+        "access_level": "crm_standard",
+        "privileged_access": ["Salesforce"],
+        "typical_behavior": {
+          "daily_logins": "6-10",
+          "file_access": "medium",
+          "email_volume": "70-100/day",
+          "common_destinations": ["salesforce", "zoom"]
+        },
+        "why_critical": "Access to customer pipeline"
+      }
+    },
+    {
+      "real_name": "ashley.martin",
+      "real_email": "ashley.martin@techcorp.com",
+      "real_ip": "10.20.3.74",
+      "real_hostname": "DEV-WORKSTATION-04",
+      "metadata": {
+        "department": "engineering",
+        "role": "developer",
+        "title": "Junior Software Developer",
+        "work_hours": "10am-7pm EST Monday-Friday",
+        "work_pattern": "office_based",
+        "high_value_target": false,
+        "access_level": "development",
+        "privileged_access": ["GitHub", "Dev environment"],
+        "typical_behavior": {
+          "daily_logins": "7-10",
+          "file_access": "medium",
+          "email_volume": "15-30/day",
+          "common_destinations": ["github", "dev_env", "slack"]
+        },
+        "why_critical": "Access to codebase"
+      }
+    },
+    {
+      "real_name": "brian.thompson",
+      "real_email": "brian.thompson@techcorp.com",
+      "real_ip": "10.20.2.45",
+      "real_hostname": "IT-ENG-WORKSTATION-03",
+      "metadata": {
+        "department": "it",
+        "role": "systems_engineer",
+        "title": "Systems Engineer",
+        "work_hours": "9am-6pm EST Monday-Friday",
+        "work_pattern": "hybrid",
+        "high_value_target": true,
+        "access_level": "server_admin",
+        "privileged_access": ["Server management", "Backup systems", "Virtualization"],
+        "typical_behavior": {
+          "daily_logins": "10-14",
+          "file_access": "high",
+          "email_volume": "25-40/day",
+          "common_destinations": ["vmware", "backup_console", "monitoring"]
+        },
+        "why_critical": "Can access all server infrastructure"
+      }
+    },
+    {
+      "real_name": "stephanie.jackson",
+      "real_email": "stephanie.jackson@techcorp.com",
+      "real_ip": "10.20.5.68",
+      "real_hostname": "SALES-LAPTOP-04",
+      "metadata": {
+        "department": "sales",
+        "role": "account_executive",
+        "title": "Account Executive",
+        "work_hours": "8am-5pm EST Monday-Friday",
+        "work_pattern": "remote_frequent",
+        "high_value_target": false,
+        "access_level": "crm_standard",
+        "privileged_access": ["Salesforce"],
+        "typical_behavior": {
+          "daily_logins": "6-9",
+          "file_access": "medium",
+          "email_volume": "65-95/day",
+          "common_destinations": ["salesforce", "linkedin"]
+        },
+        "why_critical": "Customer relationship data"
+      }
+    }
+  ],
+  
+  "servers": [
+    {
+      "real_hostname": "DB-PRIMARY-01",
+      "real_ip": "10.20.10.5",
+      "metadata": {
+        "server_type": "database_primary",
+        "os": "Ubuntu 22.04 LTS",
+        "criticality": "critical",
+        "contains": ["customer_data", "financial_records", "transaction_history"],
+        "database_type": "PostgreSQL 15",
+        "backup_frequency": "hourly",
+        "monitoring": "24/7",
+        "encryption": "at_rest_and_transit",
+        "compliance": ["PCI-DSS", "SOC2"],
+        "why_critical": "Primary customer database - business stops if down",
+        "rpo": "1_hour",
+        "rto": "2_hours"
+      }
+    },
+    {
+      "real_hostname": "DB-REPLICA-01",
+      "real_ip": "10.20.10.6",
+      "metadata": {
+        "server_type": "database_replica",
+        "os": "Ubuntu 22.04 LTS",
+        "criticality": "critical",
+        "contains": ["customer_data_readonly", "reporting_data"],
+        "database_type": "PostgreSQL 15 (read replica)",
+        "backup_frequency": "hourly",
+        "monitoring": "24/7",
+        "encryption": "at_rest_and_transit",
+        "compliance": ["PCI-DSS", "SOC2"],
+        "why_critical": "Failover for primary database",
+        "rpo": "1_hour",
+        "rto": "30_minutes"
+      }
+    },
+    {
+      "real_hostname": "DB-ANALYTICS-01",
+      "real_ip": "10.20.10.7",
+      "metadata": {
+        "server_type": "analytics_database",
+        "os": "Ubuntu 22.04 LTS",
+        "criticality": "high",
+        "contains": ["business_intelligence", "financial_analytics", "customer_metrics"],
+        "database_type": "PostgreSQL 15 + TimescaleDB",
+        "backup_frequency": "daily",
+        "monitoring": "business_hours",
+        "encryption": "at_rest",
+        "compliance": ["SOC2"],
+        "why_critical": "Executive dashboards depend on this"
+      }
+    },
+    {
+      "real_hostname": "WEB-PROD-01",
+      "real_ip": "10.20.200.10",
+      "metadata": {
+        "server_type": "web_server",
+        "os": "Ubuntu 22.04 LTS",
+        "criticality": "high",
+        "contains": ["public_website", "customer_portal"],
+        "web_server": "Nginx 1.24",
+        "backup_frequency": "daily",
+        "monitoring": "24/7",
+        "dmz": true,
+        "encryption": "TLS_1.3",
+        "compliance": ["PCI-DSS"],
+        "why_critical": "Customer-facing, revenue impact if down"
+      }
+    },
+    {
+      "real_hostname": "WEB-PROD-02",
+      "real_ip": "10.20.200.11",
+      "metadata": {
+        "server_type": "web_server",
+        "os": "Ubuntu 22.04 LTS",
+        "criticality": "high",
+        "contains": ["public_website", "customer_portal"],
+        "web_server": "Nginx 1.24",
+        "backup_frequency": "daily",
+        "monitoring": "24/7",
+        "dmz": true,
+        "encryption": "TLS_1.3",
+        "load_balanced": true,
+        "compliance": ["PCI-DSS"],
+        "why_critical": "Load balanced web server for high availability"
+      }
+    },
+    {
+      "real_hostname": "API-GATEWAY-01",
+      "real_ip": "10.20.200.20",
+      "metadata": {
+        "server_type": "api_gateway",
+        "os": "Ubuntu 22.04 LTS",
+        "criticality": "critical",
+        "contains": ["api_endpoints", "authentication_service"],
+        "software": "Kong Gateway",
+        "backup_frequency": "hourly",
+        "monitoring": "24/7",
+        "dmz": true,
+        "encryption": "TLS_1.3_mutual",
+        "rate_limiting": "enabled",
+        "compliance": ["PCI-DSS", "SOC2"],
+        "why_critical": "All API traffic routes through here"
+      }
+    },
+    {
+      "real_hostname": "DC-PRIMARY-01",
+      "real_ip": "10.20.10.100",
+      "metadata": {
+        "server_type": "domain_controller",
+        "os": "Windows Server 2022",
+        "criticality": "critical",
+        "contains": ["active_directory", "group_policy", "dns"],
+        "role": "primary_dc",
+        "backup_frequency": "hourly",
+        "monitoring": "24/7",
+        "encryption": "BitLocker",
+        "compliance": ["SOC2"],
+        "why_critical": "Authentication for entire organization",
+        "rpo": "30_minutes",
+        "rto": "1_hour"
+      }
+    },
+    {
+      "real_hostname": "DC-BACKUP-01",
+      "real_ip": "10.20.10.101",
+      "metadata": {
+        "server_type": "domain_controller",
+        "os": "Windows Server 2022",
+        "criticality": "critical",
+        "contains": ["active_directory_replica", "group_policy", "dns"],
+        "role": "backup_dc",
+        "backup_frequency": "hourly",
+        "monitoring": "24/7",
+        "encryption": "BitLocker",
+        "compliance": ["SOC2"],
+        "why_critical": "Failover for primary DC",
+        "rpo": "30_minutes",
+        "rto": "30_minutes"
+      }
+    },
+    {
+      "real_hostname": "FILE-SERVER-01",
+      "real_ip": "10.20.10.50",
+      "metadata": {
+        "server_type": "file_server",
+        "os": "Windows Server 2022",
+        "criticality": "high",
+        "contains": ["shared_drives", "department_files", "project_documents"],
+        "storage": "10TB",
+        "backup_frequency": "daily",
+        "monitoring": "business_hours",
+        "encryption": "BitLocker",
+        "compliance": ["SOC2"],
+        "why_critical": "All employee file shares"
+      }
+    },
+    {
+      "real_hostname": "BACKUP-SERVER-01",
+      "real_ip": "10.20.10.60",
+      "metadata": {
+        "server_type": "backup_server",
+        "os": "Ubuntu 22.04 LTS",
+        "criticality": "critical",
+        "contains": ["backup_data", "disaster_recovery"],
+        "backup_software": "Veeam",
+        "storage": "50TB",
+        "backup_frequency": "continuous",
+        "monitoring": "24/7",
+        "encryption": "AES-256",
+        "compliance": ["SOC2"],
+        "why_critical": "Disaster recovery depends on this",
+        "retention": "30_days"
+      }
+    },
+    {
+      "real_hostname": "DEV-DB-01",
+      "real_ip": "10.20.10.70",
+      "metadata": {
+        "server_type": "development_database",
+        "os": "Ubuntu 22.04 LTS",
+        "criticality": "medium",
+        "contains": ["test_data", "development_schemas"],
+        "database_type": "PostgreSQL 15",
+        "backup_frequency": "weekly",
+        "monitoring": "business_hours",
+        "encryption": "at_rest",
+        "why_critical": "Development team productivity"
+      }
+    },
+    {
+      "real_hostname": "TEST-ENV-01",
+      "real_ip": "10.20.10.80",
+      "metadata": {
+        "server_type": "test_environment",
+        "os": "Ubuntu 22.04 LTS",
+        "criticality": "low",
+        "contains": ["staging_code", "qa_environment"],
+        "backup_frequency": "weekly",
+        "monitoring": "business_hours",
+        "why_critical": "Pre-production testing"
+      }
+    }
+  ],
+  
+  "external_threats": {
+    "known_bad_ips": [
+      "203.0.113.50",
+      "198.51.100.25",
+      "192.0.2.100",
+      "185.220.101.45",
+      "91.203.45.78",
+      "45.142.212.61"
+    ],
+    "known_c2_domains": [
+      "evil-malware.com",
+      "c2-server.net",
+      "malicious-command.xyz",
+      "backdoor-control.org"
+    ],
+    "threat_intel_feeds": [
+      "AlienVault OTX",
+      "Abuse.ch",
+      "Emerging Threats"
+    ]
+  },
+  
+  "business_context": {
+    "critical_business_hours": "9am-5pm EST Monday-Friday",
+    "peak_transaction_hours": "10am-2pm EST",
+    "maintenance_windows": "Saturday 2am-6am EST",
+    "average_daily_transactions": 50000,
+    "average_transaction_value": "$2500",
+    "annual_revenue": "$125M",
+    "customer_count": 15000,
+    "compliance_audit_frequency": "quarterly"
+  }
+}

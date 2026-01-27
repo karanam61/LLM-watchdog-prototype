@@ -1,0 +1,373 @@
+{
+  "_documentation": {
+    "purpose": "Historical alert analyses for RAG training",
+    "usage": "Shows AI examples of good analysis, analyst decisions, and business context",
+    "note": "All data uses tokenized infrastructure from company_infrastructure_tokenized.json"
+  },
+  
+  "historical_analyses": [
+    {
+      "alert_id": "hist-001",
+      "alert_name": "Certutil Abuse - Malware Download",
+      "mitre_technique": "T1218.011",
+      "severity": "high",
+      "affected_user": "USER-tokenized",
+      "affected_host": "HOST-tokenized",
+      "department": "finance",
+      "timestamp": "2025-01-10T14:32:00Z",
+      
+      "ai_analysis": "This alert indicates LOLBin abuse using certutil.exe to download malware. Evidence: (1) Certutil executed with -urlcache flag, (2) Downloaded from non-Microsoft domain (evil.com), (3) Executable saved to C:\\temp directory, (4) Parent process is cmd.exe not an IT management tool. This is a common technique to bypass application whitelisting. Confidence: 90%. Recommendation: Investigate immediately, check for additional indicators of compromise.",
+      
+      "analyst_decision": "True Positive",
+      "analyst_name": "Security Analyst",
+      "analyst_notes": "Confirmed malicious. User reported suspicious email attachment earlier today. Certutil was used to download second-stage payload. Host isolated, malware removed, user re-imaged.",
+      
+      "resolution_time_minutes": 25,
+      "actions_taken": [
+        "Isolated affected host from network",
+        "Collected memory dump for forensics",
+        "Scanned downloaded file (VirusTotal: 45/70 detections)",
+        "Checked for lateral movement (none found)",
+        "Re-imaged workstation",
+        "User security awareness training scheduled"
+      ],
+      
+      "business_impact": "Single finance workstation compromised before isolation. No data exfiltration detected. Minimal business disruption.",
+      
+      "lessons_learned": "Finance department should have stricter email attachment policies. Consider blocking certutil.exe for non-IT users via AppLocker.",
+      
+      "false_positive": false,
+      "escalated": true
+    },
+    
+    {
+      "alert_id": "hist-002",
+      "alert_name": "PowerShell Fileless Execution",
+      "mitre_technique": "T1059.001",
+      "severity": "critical",
+      "affected_user": "USER-tokenized",
+      "affected_host": "HOST-tokenized",
+      "department": "hr",
+      "timestamp": "2025-01-08T09:15:00Z",
+      
+      "ai_analysis": "Critical fileless malware detected. Evidence: (1) PowerShell spawned from Microsoft Word, (2) ExecutionPolicy Bypass and WindowStyle Hidden flags present, (3) Base64-encoded command execution (IEX + DownloadString), (4) Network connection to external IP immediately after. This is classic malware delivery via malicious document. The use of in-memory execution means no file on disk. Confidence: 95%. Recommendation: IMMEDIATE isolation required.",
+      
+      "analyst_decision": "True Positive",
+      "analyst_name": "Security Analyst",
+      "analyst_notes": "Confirmed Emotet variant. User opened malicious invoice.docx from phishing email. PowerShell downloaded and executed in-memory payload. Host isolated within 3 minutes of alert. No lateral movement detected due to fast response.",
+      
+      "resolution_time_minutes": 18,
+      "actions_taken": [
+        "Immediate network isolation",
+        "Collected PowerShell command history",
+        "Analyzed base64 payload (credential stealer + C2 beacon)",
+        "Blocked C2 IP at firewall for entire organization",
+        "Full EDR scan of HR department",
+        "Workstation re-imaged"
+      ],
+      
+      "business_impact": "HR workstation compromised. Contained before data exfiltration. Employee records not accessed. Zero business disruption due to fast response.",
+      
+      "lessons_learned": "Office macros should be disabled by default. Consider blocking PowerShell for non-IT users or implementing PowerShell logging/AMSI.",
+      
+      "false_positive": false,
+      "escalated": true
+    },
+    
+    {
+      "alert_id": "hist-003",
+      "alert_name": "Certutil Abuse - Malware Download",
+      "mitre_technique": "T1218.011",
+      "severity": "high",
+      "affected_user": "USER-tokenized-itadmin",
+      "affected_host": "HOST-tokenized-itadmin",
+      "department": "it",
+      "timestamp": "2025-01-12T16:45:00Z",
+      
+      "ai_analysis": "Certutil downloading executable from external domain. Normally high-risk, BUT source is IT admin workstation (HOST-tokenized-itadmin) and user is domain admin (USER-tokenized-itadmin). Evidence: (1) Certutil with urlcache flag, (2) Downloaded .exe file, (3) Saved to C:\\Tools directory (not temp). Context suggests legitimate IT operations. Confidence: 60% malicious. Recommendation: Verify with IT admin before escalating.",
+      
+      "analyst_decision": "False Positive",
+      "analyst_name": "Security Analyst",
+      "analyst_notes": "Contacted IT admin. Confirmed legitimate activity - downloading internal tool from company server for deployment testing. Domain was company-owned but not in whitelist. Added domain to exception list.",
+      
+      "resolution_time_minutes": 8,
+      "actions_taken": [
+        "Verified with IT admin via Slack",
+        "Checked download source (internal company domain)",
+        "Added domain to certutil whitelist",
+        "Updated detection rule to reduce false positives from IT workstations"
+      ],
+      
+      "business_impact": "None - legitimate IT activity",
+      
+      "lessons_learned": "Need better context awareness - IT admin workstations should have different alert thresholds. Consider suppressing certain LOLBin alerts for privileged IT users during business hours.",
+      
+      "false_positive": true,
+      "escalated": false
+    },
+    
+    {
+      "alert_id": "hist-004",
+      "alert_name": "Lateral Movement via PsExec",
+      "mitre_technique": "T1021.002",
+      "severity": "high",
+      "affected_user": "USER-tokenized",
+      "affected_host": "HOST-tokenized-workstation",
+      "target_host": "HOST-tokenized-server-critical",
+      "department": "sales",
+      "timestamp": "2025-01-05T22:30:00Z",
+      
+      "ai_analysis": "Lateral movement detected using PsExec. Evidence: (1) PsExec executed from sales workstation targeting critical database server, (2) After-hours activity (10:30 PM), (3) SMB connections to ADMIN$ share, (4) Service creation on target server, (5) Command execution as SYSTEM. This is highly suspicious - sales users should never access database servers, especially after hours. Confidence: 92%. Recommendation: IMMEDIATE investigation and host isolation.",
+      
+      "analyst_decision": "True Positive",
+      "analyst_name": "Security Analyst",
+      "analyst_notes": "Confirmed compromise. Attacker used stolen credentials from earlier phishing campaign. Attempted to access database server for data exfiltration. Caught during lateral movement phase. Both source and target hosts isolated. Incident response engaged.",
+      
+      "resolution_time_minutes": 12,
+      "actions_taken": [
+        "Isolated both source and target hosts",
+        "Reset compromised user credentials",
+        "Reviewed database access logs (no data accessed)",
+        "Forensic imaging of both systems",
+        "Threat hunting across network for similar activity",
+        "Implemented stricter network segmentation"
+      ],
+      
+      "business_impact": "Prevented database breach. No customer data accessed. Sales user account compromised but contained. Minor business disruption (1 workstation, 2 hours downtime).",
+      
+      "lessons_learned": "Network segmentation between user workstations and servers is critical. Sales department should never have access to database servers. Implement micro-segmentation and just-in-time access.",
+      
+      "false_positive": false,
+      "escalated": true,
+      "incident_response_engaged": true
+    },
+    
+    {
+      "alert_id": "hist-005",
+      "alert_name": "AWS API Enumeration",
+      "mitre_technique": "T1580",
+      "severity": "high",
+      "affected_user": "USER-tokenized-devlead",
+      "affected_host": "HOST-tokenized-dev",
+      "department": "engineering",
+      "timestamp": "2025-01-11T15:20:00Z",
+      
+      "ai_analysis": "Unusual volume of AWS DescribeInstances API calls detected. Evidence: (1) 500+ API calls in 10 minutes, (2) Source is development workstation, (3) User is engineering lead with legitimate AWS access, (4) During business hours. Baseline for this user: 20-30 calls/hour. Current spike indicates either: (A) Legitimate infrastructure automation script, or (B) Compromised credentials used for reconnaissance. Confidence: 65% suspicious. Recommendation: Contact user to verify activity.",
+      
+      "analyst_decision": "False Positive",
+      "analyst_name": "Security Analyst",
+      "analyst_notes": "Contacted engineering lead. Running new infrastructure discovery script for cloud cost optimization project. Legitimate business activity. Script will run weekly going forward. Adjusted baseline for this user.",
+      
+      "resolution_time_minutes": 5,
+      "actions_taken": [
+        "Slack message to engineering lead",
+        "Confirmed legitimate automation script",
+        "Reviewed script source code",
+        "Updated detection baseline for engineering team AWS activity",
+        "Added exception for this specific script"
+      ],
+      
+      "business_impact": "None - legitimate engineering work",
+      
+      "lessons_learned": "Need better communication with engineering teams about automation scripts. Consider requiring advance notice for bulk cloud API operations. Update detection logic to account for legitimate DevOps activity.",
+      
+      "false_positive": true,
+      "escalated": false
+    },
+    
+    {
+      "alert_id": "hist-006",
+      "alert_name": "Malicious NPM Package Installation",
+      "mitre_technique": "T1195.002",
+      "severity": "critical",
+      "affected_user": "USER-tokenized-dev",
+      "affected_host": "HOST-tokenized-dev",
+      "department": "engineering",
+      "timestamp": "2025-01-09T11:05:00Z",
+      
+      "ai_analysis": "Supply chain attack detected. Evidence: (1) NPM package installed with suspicious post-install script, (2) Large data upload immediately after installation, (3) Environment variables accessed (likely API keys, AWS credentials), (4) Connection to unknown external server. This is classic supply chain compromise - malicious package exfiltrating secrets. Confidence: 98%. Recommendation: CRITICAL - Rotate all credentials immediately, isolate development environment.",
+      
+      "analyst_decision": "True Positive",
+      "analyst_name": "Security Analyst",
+      "analyst_notes": "Confirmed typosquatting attack. Developer installed 'reqeusts' instead of 'requests'. Package exfiltrated AWS keys and database credentials. IMMEDIATE credential rotation initiated. All AWS resources reviewed for unauthorized access. No unauthorized access detected due to fast response.",
+      
+      "resolution_time_minutes": 45,
+      "actions_taken": [
+        "Isolated development workstation",
+        "Rotated all AWS credentials",
+        "Rotated all database passwords",
+        "Rotated API keys",
+        "Reviewed AWS CloudTrail logs (no unauthorized activity)",
+        "Removed malicious package from codebase",
+        "Blocked malicious C2 server at firewall",
+        "Implemented npm package name validation pre-commit hook",
+        "Security training for all developers on supply chain attacks"
+      ],
+      
+      "business_impact": "Critical credentials exposed but rotated before exploitation. No data breach. Development delayed 2 hours for credential rotation. Estimated cost savings: $500K+ (prevented AWS compromise).",
+      
+      "lessons_learned": "Supply chain attacks are increasing. Need package name similarity checking in CI/CD pipeline. Consider using private npm registry with approved packages only. Implement secrets scanning in repositories.",
+      
+      "false_positive": false,
+      "escalated": true,
+      "incident_response_engaged": true
+    },
+    
+    {
+      "alert_id": "hist-007",
+      "alert_name": "AI-Generated Phishing Email",
+      "mitre_technique": "T1566.002",
+      "severity": "high",
+      "affected_user": "USER-tokenized-finance",
+      "affected_host": "HOST-tokenized-finance",
+      "department": "finance",
+      "timestamp": "2025-01-13T10:30:00Z",
+      
+      "ai_analysis": "Sophisticated phishing detected. Evidence: (1) Email references real internal project (Q4 budget review), (2) Perfect grammar and context awareness (AI-generated), (3) Urgent request for invoice approval, (4) Link to credential harvesting site (subdomain spoofing: secure-login-microsoft-com.attacker.com), (5) User clicked link and downloaded file with double extension (.pdf.exe). This is highly targeted spear phishing. Confidence: 88%. Recommendation: Check if credentials were entered, reset password, investigate downloaded file.",
+      
+      "analyst_decision": "True Positive",
+      "analyst_name": "Security Analyst",
+      "analyst_notes": "User clicked link but did NOT enter credentials (recognized fake login page). Downloaded file quarantined before execution. Close call. Email came from compromised external vendor account. Vendor notified.",
+      
+      "resolution_time_minutes": 15,
+      "actions_taken": [
+        "Quarantined downloaded file",
+        "Confirmed user did not enter credentials",
+        "Blocked attacker domain at firewall",
+        "Searched email logs for similar messages (found 3 more)",
+        "Notified other recipients",
+        "Contacted compromised vendor",
+        "Added domain to blocklist",
+        "Security awareness reminder sent to finance team"
+      ],
+      
+      "business_impact": "Near-miss. No credentials compromised. User security awareness training prevented compromise. Zero business impact.",
+      
+      "lessons_learned": "AI-generated phishing is increasingly sophisticated. Traditional spam filters inadequate. User training is most effective defense. Consider implementing FIDO2 hardware keys for finance department to prevent credential theft even if users fall for phishing.",
+      
+      "false_positive": false,
+      "escalated": false
+    },
+    
+    {
+      "alert_id": "hist-008",
+      "alert_name": "DNS Tunneling Data Exfiltration",
+      "mitre_technique": "T1048.003",
+      "severity": "high",
+      "affected_user": "USER-tokenized",
+      "affected_host": "HOST-tokenized",
+      "department": "sales",
+      "timestamp": "2025-01-07T19:45:00Z",
+      
+      "ai_analysis": "Data exfiltration via DNS tunneling detected. Evidence: (1) Abnormally long DNS queries (50+ character subdomains), (2) Base64-like patterns in queries, (3) High frequency (100+ queries/minute) to same domain, (4) After-hours activity, (5) Querying non-existent domain (c2-server.net). This is a covert data exfiltration channel. DNS usually bypasses firewalls. Confidence: 94%. Recommendation: IMMEDIATE investigation, block domain, analyze exfiltrated data.",
+      
+      "analyst_decision": "True Positive",
+      "analyst_name": "Security Analyst",
+      "analyst_notes": "Confirmed data exfiltration. Attacker exfiltrating customer contact list (500 records). Domain blocked, host isolated. Data recovered from DNS logs and decoded. Customer contact list - PII. Data breach notification required for 500 customers.",
+      
+      "resolution_time_minutes": 30,
+      "actions_taken": [
+        "Blocked C2 domain at DNS level",
+        "Isolated compromised host",
+        "Decoded DNS queries to recover exfiltrated data",
+        "Confirmed 500 customer records exfiltrated",
+        "Initiated data breach notification process",
+        "Forensic analysis of how attacker gained access (phishing 2 days prior)",
+        "Implemented DNS query length monitoring",
+        "Enhanced egress filtering"
+      ],
+      
+      "business_impact": "DATA BREACH: 500 customer contact records exfiltrated. Legal/compliance engaged. GDPR notification required. Estimated regulatory fine: $50K. Reputational damage. Customer notification in progress.",
+      
+      "lessons_learned": "DNS is often overlooked for exfiltration. Need better DNS monitoring and filtering. Consider implementing DNS firewall. This breach was preventable if earlier phishing alert had been handled faster.",
+      
+      "false_positive": false,
+      "escalated": true,
+      "incident_response_engaged": true,
+      "data_breach": true
+    },
+    
+    {
+      "alert_id": "hist-009",
+      "alert_name": "WMI Persistence Mechanism",
+      "mitre_technique": "T1546.003",
+      "severity": "high",
+      "affected_user": "USER-tokenized",
+      "affected_host": "HOST-tokenized",
+      "department": "hr",
+      "timestamp": "2025-01-06T08:20:00Z",
+      
+      "ai_analysis": "Persistence mechanism created using WMI. Evidence: (1) PowerShell creating WMI event consumer, (2) CommandLineEventConsumer with suspicious payload, (3) Survives reboots with no file on disk, (4) Created by standard user account (not IT admin). This is advanced persistence technique used by APT groups. Attacker establishing foothold. Confidence: 91%. Recommendation: CRITICAL - Investigate immediately, check for additional persistence mechanisms.",
+      
+      "analyst_decision": "True Positive",
+      "analyst_name": "Security Analyst",
+      "analyst_notes": "Confirmed advanced persistent threat (APT). Part of multi-stage attack. WMI persistence discovered during threat hunting after earlier alert. Removed WMI consumers, full system rebuild required to ensure clean state. Threat actor had access for 3 days before detection.",
+      
+      "resolution_time_minutes": 120,
+      "actions_taken": [
+        "Removed malicious WMI event consumers",
+        "Threat hunting across entire network (found 2 more compromised systems)",
+        "Isolated all affected hosts",
+        "Full forensic analysis",
+        "Rebuilt all 3 systems from clean images",
+        "Reset all HR department credentials",
+        "Engaged external incident response firm",
+        "Reviewed HR data access logs (no PII exfiltrated)"
+      ],
+      
+      "business_impact": "3 HR workstations compromised for 3 days. No data exfiltration detected. HR operations disrupted for 1 day during remediation. Estimated cost: $25K (IR firm + downtime).",
+      
+      "lessons_learned": "Need better threat hunting capabilities. This persistence was not detected by automated tools - found during manual investigation. Implement regular WMI consumer auditing. Consider EDR with behavioral analytics.",
+      
+      "false_positive": false,
+      "escalated": true,
+      "incident_response_engaged": true,
+      "external_ir_firm": true
+    },
+    
+    {
+      "alert_id": "hist-010",
+      "alert_name": "Credential Stuffing Attack",
+      "mitre_technique": "T1110.004",
+      "severity": "high",
+      "affected_user": "multiple",
+      "affected_host": "HOST-tokenized-server",
+      "target": "Domain Controller",
+      "timestamp": "2025-01-04T03:15:00Z",
+      
+      "ai_analysis": "Credential stuffing attack detected. Evidence: (1) Multiple failed authentication attempts (500+) from single external IP, (2) Targeting multiple usernames, (3) After-hours activity (3:15 AM), (4) Source IP from known botnet (threat intel match), (5) Using NTLM authentication. Attacker testing stolen credentials from data breach. Confidence: 97%. Recommendation: Block source IP, force password resets for targeted accounts if any succeeded.",
+      
+      "analyst_decision": "True Positive - Blocked",
+      "analyst_name": "Security Analyst",
+      "analyst_notes": "Automated credential stuffing from botnet. All attempts failed (strong password policy prevented breach). Source IP blocked at firewall. No accounts compromised. Threat intel shows this is ongoing campaign targeting financial services companies.",
+      
+      "resolution_time_minutes": 5,
+      "actions_taken": [
+        "Blocked source IP at firewall",
+        "Verified no successful logins from this IP",
+        "Checked if any employee passwords appear in haveibeenpwned database (2 matches found)",
+        "Forced password reset for 2 employees with compromised passwords",
+        "Added IP to threat intel feed",
+        "Reviewed other authentication sources for similar patterns",
+        "Sent security reminder about password reuse"
+      ],
+      
+      "business_impact": "None - attack blocked by strong password policy and account lockout. Zero business disruption.",
+      
+      "lessons_learned": "Strong password policy and account lockout policies are effective. Consider implementing MFA for all users. Monitor haveibeenpwned API for company email addresses in breach databases.",
+      
+      "false_positive": false,
+      "escalated": false
+    }
+  ],
+  
+  "summary_statistics": {
+    "total_analyses": 10,
+    "true_positives": 8,
+    "false_positives": 2,
+    "average_resolution_time_minutes": 29,
+    "incidents_requiring_ir": 3,
+    "data_breaches": 1,
+    "prevented_breaches": 2
+  }
+}

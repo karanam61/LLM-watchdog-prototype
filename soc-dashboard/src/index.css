@@ -1,0 +1,145 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-dark: #020617;
+    /* Slate 950 */
+    --k-neon-cyan: #06b6d4;
+    --k-neon-red: #ef4444;
+    --k-neon-green: #10b981;
+  }
+
+  body {
+    background-color: #020617;
+    background-image:
+      linear-gradient(to right, rgba(30, 41, 59, 0.3) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(30, 41, 59, 0.3) 1px, transparent 1px);
+    background-size: 40px 40px;
+    color: #f8fafc;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0f172a;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+}
+
+@layer components {
+
+  /* Panels */
+  .glass-panel {
+    @apply bg-slate-900/60 border border-slate-700/50 rounded-xl shadow-lg;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+  }
+
+  .glass-panel-hover {
+    @apply transition-all duration-300;
+  }
+
+  .glass-panel-hover:hover {
+    border-color: rgba(100, 116, 139, 0.5);
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.15);
+  }
+
+  .glass-button {
+    @apply transition-colors duration-200;
+  }
+
+  .glass-button:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  /* Typography */
+  .font-mono-numbers {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  /* Effects */
+  .animate-pulse-slow {
+    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .glow-text-cyan {
+    text-shadow: 0 0 10px rgba(6, 182, 212, 0.5), 0 0 20px rgba(6, 182, 212, 0.3);
+  }
+
+  .glow-text-red {
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.5), 0 0 20px rgba(239, 68, 68, 0.3);
+  }
+
+  .glow-border-cyan {
+    box-shadow: 0 0 15px rgba(6, 182, 212, 0.2);
+  }
+
+  /* Navigation */
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 transition-all duration-300 cursor-pointer relative overflow-hidden;
+  }
+
+  .nav-item:hover {
+    color: #22d3ee;
+    /* cyan-400 */
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  .nav-item.active {
+    color: #67e8f9;
+    /* cyan-300 */
+    background-color: rgba(8, 51, 68, 0.3);
+    /* cyan-950/30 */
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    box-shadow: 0 0 15px rgba(6, 182, 212, 0.15);
+  }
+
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background-color: #06b6d4;
+    box-shadow: 0 0 10px #06b6d4;
+  }
+
+  /* Custom scrollbar class for specific elements */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #0f172a;
+    border-radius: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+}
