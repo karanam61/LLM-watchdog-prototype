@@ -164,6 +164,37 @@ def get_log_categories():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@monitoring_bp.route('/api/monitoring/logs/test', methods=['POST'])
+def generate_test_logs():
+    """Generate test logs for all categories to verify Debug Dashboard works"""
+    try:
+        import time
+        
+        # Generate test operations for each category
+        test_ops = [
+            ('API', 'TEST: POST /ingest', {'test': True, 'message': 'Test API operation'}),
+            ('WORKER', 'TEST: Background Task', {'test': True, 'task': 'sample_task'}),
+            ('FUNCTION', 'TEST: parse_alert()', {'test': True, 'function': 'parse_alert'}),
+            ('AI', 'TEST: Claude API Call', {'test': True, 'model': 'claude-sonnet', 'tokens': 500}),
+            ('RAG', 'TEST: MITRE Query', {'test': True, 'collection': 'mitre_severity', 'results': 3}),
+            ('DATABASE', 'TEST: Supabase Query', {'test': True, 'table': 'alerts', 'rows': 10}),
+            ('QUEUE', 'TEST: Alert Enqueued', {'test': True, 'queue': 'priority', 'size': 5}),
+            ('SECURITY', 'TEST: Input Validation', {'test': True, 'check': 'prompt_injection', 'passed': True}),
+            ('ERROR', 'TEST: Sample Error', {'test': True, 'error': 'This is a test error', 'severity': 'low'}),
+        ]
+        
+        for category, operation, details in test_ops:
+            live_logger.log(category, operation, details, status='success', duration=0.05)
+            time.sleep(0.1)  # Small delay between logs
+        
+        return jsonify({
+            'success': True,
+            'message': f'Generated {len(test_ops)} test operations',
+            'categories_tested': [op[0] for op in test_ops]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @monitoring_bp.route('/api/monitoring/logs/search', methods=['POST'])
 def search_logs():
     """Search logs by keyword"""
