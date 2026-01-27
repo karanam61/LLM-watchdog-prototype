@@ -875,12 +875,15 @@ Required JSON structure:
   "recommendation": "Specific actionable steps prioritized by urgency."
 }}
 
-Provide DEEP analysis with CLEAR CHAIN OF THOUGHT:
-- At least 8 specific evidence points from logs, MITRE technique, and alert details
-- Chain of thought: 5 steps showing observation -> analysis -> conclusion for each key finding
-- Reasoning must be 300+ characters explaining how evidence connects
-- Show your work: explain WHY each piece of evidence matters
-- Reference specific log entries and MITRE tactics
+CRITICAL REQUIREMENTS FOR YOUR ANALYSIS:
+1. LOG REFERENCES ARE MANDATORY: Reference specific log entries by their ID (e.g., [PROCESS-1], [NETWORK-2])
+2. Every log provided above MUST be mentioned in your evidence or reasoning
+3. At least 8 specific evidence points from logs, MITRE technique, and alert details
+4. Chain of thought: 5 steps showing observation -> analysis -> conclusion
+5. Reasoning must be 300+ characters explaining how evidence connects
+6. Reference specific log entry IDs, MITRE tactics, and timestamps
+
+YOUR EVIDENCE ARRAY MUST INCLUDE references to each available log type using exact IDs like [PROCESS-1], [NETWORK-1].
 
 DO NOT use markdown formatting. DO NOT wrap in code blocks. Return ONLY the raw JSON object.
 """

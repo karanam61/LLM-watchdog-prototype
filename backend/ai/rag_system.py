@@ -630,14 +630,20 @@ class RAGSystem:
   "reasoning": "Comprehensive 300+ character synthesis of the chain of thought. Explain how all evidence points connect to form a coherent attack narrative. Reference specific log entries, MITRE tactics, historical patterns, and business impact.",
   "recommendation": "Specific actionable steps prioritized by urgency, based on the verdict and business context."
 }""")
-        context_parts.append("\nProvide DEEP analysis with CLEAR CHAIN OF THOUGHT:")
-        context_parts.append("- At least 8 specific evidence points from logs, MITRE data, and historical context")
-        context_parts.append("- Chain of thought: 5 steps showing observation -> analysis -> conclusion for each key finding")
-        context_parts.append("- Reasoning must be 300+ characters explaining how evidence connects")
-        context_parts.append("- Show your work: explain WHY each piece of evidence matters")
-        context_parts.append("- Connect the dots: show how findings relate to each other")
-        context_parts.append("- Reference specific log entries, MITRE tactics, and similar past incidents")
-        context_parts.append("- Explain the complete attack chain and potential business impact")
+        context_parts.append("\nCRITICAL REQUIREMENTS FOR YOUR ANALYSIS:")
+        context_parts.append("1. LOG REFERENCES ARE MANDATORY: You MUST reference specific log entries by their ID")
+        context_parts.append("   Example: 'As seen in [PROCESS-1], powershell.exe was spawned from WINWORD.EXE'")
+        context_parts.append("   Example: '[NETWORK-2] shows connection to known C2 server on port 443'")
+        context_parts.append("2. Every log provided above MUST be referenced in your evidence or reasoning")
+        context_parts.append("3. At least 8 specific evidence points from logs, MITRE data, and historical context")
+        context_parts.append("4. Chain of thought: 5 steps showing observation -> analysis -> conclusion")
+        context_parts.append("5. Reasoning must be 300+ characters explaining how evidence connects")
+        context_parts.append("6. Reference specific log entry IDs, MITRE tactics, and similar past incidents")
+        context_parts.append("7. Explain the complete attack chain and potential business impact")
+        context_parts.append("\nYOUR EVIDENCE ARRAY MUST INCLUDE:")
+        context_parts.append("- At least one reference to each log type provided (process, network, file, windows)")
+        context_parts.append("- Use the exact log IDs like [PROCESS-1], [NETWORK-1], [FILE-1], [WINDOWS-1]")
+        context_parts.append("- Explain what each log entry reveals about the incident")
         context_parts.append("\nDO NOT use markdown formatting. DO NOT wrap in code blocks. Return ONLY the raw JSON object.")
         context_parts.append("\n" + "=" * 70)
         
@@ -696,61 +702,90 @@ class RAGSystem:
     
     def _format_logs(self, logs: Dict[str, List]) -> str:
         """
-        Format logs dictionary into readable text.
+        Format logs dictionary into readable text with indexed entries.
         
         Args:
             logs: Dictionary with keys: network_logs, process_logs, 
                   windows_event_logs, file_activity_logs
         
         Returns:
-            Formatted string
+            Formatted string with indexed log entries for AI to reference
         """
         formatted = []
+        log_counts = {}
         
-        # Process logs
+        # Process logs - show ALL (up to 10)
         if 'process_logs' in logs and logs['process_logs']:
-            formatted.append("\nProcess Logs:")
-            for log in logs['process_logs'][:3]:  # Limit to 3
+            count = len(logs['process_logs'])
+            log_counts['process'] = count
+            formatted.append(f"\n### PROCESS LOGS ({count} entries) - YOU MUST REFERENCE THESE:")
+            for idx, log in enumerate(logs['process_logs'][:10], 1):
                 process_name = log.get('process_name', 'N/A')
                 parent = log.get('parent_process', 'N/A')
                 cmd = log.get('command_line', 'N/A')
+                user = log.get('username', 'N/A')
+                timestamp = log.get('timestamp', 'N/A')
                 # Truncate long commands
-                if len(cmd) > 200:
-                    cmd = cmd[:200] + "..."
-                formatted.append(f"  - {process_name} (parent: {parent})")
+                if len(cmd) > 300:
+                    cmd = cmd[:300] + "..."
+                formatted.append(f"  [PROCESS-{idx}] {process_name}")
+                formatted.append(f"    Parent: {parent}")
                 formatted.append(f"    Command: {cmd}")
+                formatted.append(f"    User: {user}, Time: {timestamp}")
         
-        # Network logs
+        # Network logs - show ALL (up to 10)
         if 'network_logs' in logs and logs['network_logs']:
-            formatted.append("\nNetwork Logs:")
-            for log in logs['network_logs'][:3]:
+            count = len(logs['network_logs'])
+            log_counts['network'] = count
+            formatted.append(f"\n### NETWORK LOGS ({count} entries) - YOU MUST REFERENCE THESE:")
+            for idx, log in enumerate(logs['network_logs'][:10], 1):
                 src_ip = log.get('source_ip', 'N/A')
                 dst_ip = log.get('dest_ip', 'N/A')
                 dst_port = log.get('dest_port', 'N/A')
                 protocol = log.get('protocol', 'N/A')
                 bytes_sent = log.get('bytes_sent', 0)
-                formatted.append(f"  - {src_ip} -> {dst_ip}:{dst_port} ({protocol})")
-                formatted.append(f"    Bytes: {bytes_sent}")
+                bytes_recv = log.get('bytes_received', 0)
+                timestamp = log.get('timestamp', 'N/A')
+                formatted.append(f"  [NETWORK-{idx}] {src_ip} -> {dst_ip}:{dst_port} ({protocol})")
+                formatted.append(f"    Bytes sent: {bytes_sent}, received: {bytes_recv}")
+                formatted.append(f"    Time: {timestamp}")
         
-        # Windows Event logs
-        if 'windows_event_logs' in logs and logs['windows_event_logs']:
-            formatted.append("\nWindows Event Logs:")
-            for log in logs['windows_event_logs'][:3]:
+        # Windows Event logs - show ALL (up to 10)
+        if 'windows_logs' in logs and logs['windows_logs']:
+            count = len(logs['windows_logs'])
+            log_counts['windows'] = count
+            formatted.append(f"\n### WINDOWS EVENT LOGS ({count} entries) - YOU MUST REFERENCE THESE:")
+            for idx, log in enumerate(logs['windows_logs'][:10], 1):
                 event_id = log.get('event_id', 'N/A')
                 event_type = log.get('event_type', 'N/A')
                 username = log.get('username', 'N/A')
-                formatted.append(f"  - Event ID {event_id}: {event_type}")
+                description = log.get('description', 'N/A')
+                formatted.append(f"  [WINDOWS-{idx}] Event ID {event_id}: {event_type}")
                 formatted.append(f"    User: {username}")
+                formatted.append(f"    Details: {description[:200] if description else 'N/A'}")
         
-        # File Activity logs
-        if 'file_activity_logs' in logs and logs['file_activity_logs']:
-            formatted.append("\nFile Activity Logs:")
-            for log in logs['file_activity_logs'][:3]:
+        # File Activity logs - show ALL (up to 10)
+        if 'file_logs' in logs and logs['file_logs']:
+            count = len(logs['file_logs'])
+            log_counts['file'] = count
+            formatted.append(f"\n### FILE ACTIVITY LOGS ({count} entries) - YOU MUST REFERENCE THESE:")
+            for idx, log in enumerate(logs['file_logs'][:10], 1):
                 action = log.get('action', 'N/A')
                 file_path = log.get('file_path', 'N/A')
                 process = log.get('process_name', 'N/A')
-                formatted.append(f"  - {action}: {file_path}")
-                formatted.append(f"    Process: {process}")
+                timestamp = log.get('timestamp', 'N/A')
+                formatted.append(f"  [FILE-{idx}] {action}: {file_path}")
+                formatted.append(f"    Process: {process}, Time: {timestamp}")
+        
+        # Add requirement summary
+        if log_counts:
+            formatted.append("\n" + "=" * 50)
+            formatted.append("CRITICAL REQUIREMENT: You have been provided with:")
+            for log_type, count in log_counts.items():
+                formatted.append(f"  - {count} {log_type} log(s)")
+            formatted.append("Your evidence MUST reference specific log entries by their ID (e.g., [PROCESS-1], [NETWORK-2]).")
+            formatted.append("Failing to reference available logs will result in incomplete analysis.")
+            formatted.append("=" * 50)
         
         return "\n".join(formatted) if formatted else "No logs available"
 

@@ -2,365 +2,255 @@
 
 ## How to Generate the Diagram
 
-### Option 1: Mermaid (GitHub renders this automatically)
-Copy the code below into any `.md` file on GitHub, or use https://mermaid.live
-
-### Option 2: Use https://mermaid.live
-1. Go to https://mermaid.live
-2. Paste the code below
-3. Click "Download PNG" or "Download SVG"
+1. Go to **https://mermaid.live**
+2. Delete everything in the code panel
+3. Paste one of the diagrams below
+4. Click **Actions** (top right) → **Download PNG**
 
 ---
 
-## Main System Architecture
-
-```mermaid
-flowchart TB
-    subgraph SOURCES["🔒 SECURITY DATA SOURCES"]
-        SIEM["SIEM Systems<br/>(Splunk, QRadar)"]
-        EDR["EDR Tools<br/>(CrowdStrike, Defender)"]
-        FW["Firewalls & IDS<br/>(Palo Alto, Snort)"]
-    end
-
-    subgraph INGESTION["📥 ALERT INGESTION"]
-        WEBHOOK["Webhook Endpoint<br/>/ingest"]
-        PARSER["Alert Parser<br/>parser.py"]
-        MITRE["MITRE Mapper<br/>mitre_mapping.py"]
-        SEVERITY["Severity Classifier<br/>Severity.py"]
-    end
-
-    subgraph QUEUE["📋 QUEUE SYSTEM"]
-        QM["Queue Manager<br/>Queue_manager.py"]
-        PQ["🔴 Priority Queue<br/>CRITICAL/HIGH"]
-        SQ["🟡 Standard Queue<br/>MEDIUM/LOW"]
-    end
-
-    subgraph CONTEXT["🔍 CONTEXT GATHERING"]
-        SUPABASE["Supabase DB<br/>PostgreSQL"]
-        LOGS["Forensic Logs<br/>Process | Network | File | Windows"]
-        OSINT["OSINT Lookup<br/>osint_lookup.py"]
-        RAG["RAG System<br/>rag_system.py"]
-        CHROMA["ChromaDB<br/>7 Collections"]
-    end
-
-    subgraph AI["🤖 AI ANALYSIS PIPELINE"]
-        GUARD_IN["Input Guard<br/>security_guard.py"]
-        BUDGET["Budget Tracker<br/>dynamic_budget_tracker.py"]
-        CONTEXT_BUILD["Context Builder<br/>alert_analyzer_final.py"]
-        CLAUDE["Claude AI<br/>Sonnet / Haiku"]
-        GUARD_OUT["Output Guard<br/>security_guard.py"]
-        AUTO["Auto-Triage<br/>Benign → Auto-close"]
-    end
-
-    subgraph DASHBOARD["📊 REACT DASHBOARD"]
-        ANALYST["Analyst Console<br/>Alert Triage"]
-        TRANSPARENCY["AI Transparency<br/>Proof & Evidence"]
-        RAGVIZ["RAG Visualizer<br/>Knowledge Usage"]
-        PERF["Performance<br/>System Metrics"]
-        DEBUG["Debug Dashboard<br/>Live Logs"]
-    end
-
-    subgraph BACKUP["☁️ FAILOVER"]
-        S3["AWS S3<br/>Backup Storage"]
-    end
-
-    %% Connections
-    SIEM --> WEBHOOK
-    EDR --> WEBHOOK
-    FW --> WEBHOOK
-    
-    WEBHOOK --> PARSER
-    PARSER --> MITRE
-    MITRE --> SEVERITY
-    SEVERITY --> QM
-    
-    QM --> PQ
-    QM --> SQ
-    
-    PQ --> GUARD_IN
-    SQ --> GUARD_IN
-    
-    SUPABASE --> LOGS
-    LOGS --> CONTEXT_BUILD
-    OSINT --> CONTEXT_BUILD
-    RAG --> CHROMA
-    CHROMA --> CONTEXT_BUILD
-    
-    GUARD_IN --> BUDGET
-    BUDGET --> CONTEXT_BUILD
-    CONTEXT_BUILD --> CLAUDE
-    CLAUDE --> GUARD_OUT
-    GUARD_OUT --> AUTO
-    AUTO --> SUPABASE
-    
-    SUPABASE --> ANALYST
-    SUPABASE --> TRANSPARENCY
-    SUPABASE --> RAGVIZ
-    SUPABASE --> PERF
-    SUPABASE --> DEBUG
-    
-    SUPABASE -.->|Sync| S3
-
-    %% Styling
-    classDef sources fill:#e1f5fe,stroke:#01579b
-    classDef ingestion fill:#fff3e0,stroke:#e65100
-    classDef queue fill:#fce4ec,stroke:#880e4f
-    classDef context fill:#e8f5e9,stroke:#1b5e20
-    classDef ai fill:#f3e5f5,stroke:#4a148c
-    classDef dashboard fill:#e0f2f1,stroke:#004d40
-    classDef backup fill:#eceff1,stroke:#37474f
-
-    class SIEM,EDR,FW sources
-    class WEBHOOK,PARSER,MITRE,SEVERITY ingestion
-    class QM,PQ,SQ queue
-    class SUPABASE,LOGS,OSINT,RAG,CHROMA context
-    class GUARD_IN,BUDGET,CONTEXT_BUILD,CLAUDE,GUARD_OUT,AUTO ai
-    class ANALYST,TRANSPARENCY,RAGVIZ,PERF,DEBUG dashboard
-    class S3 backup
-```
-
----
-
-## AI Analysis Pipeline Detail
+## RECOMMENDED: Clean Linear Diagram (Copy This)
 
 ```mermaid
 flowchart LR
-    subgraph PHASE1["Phase 1: Security Gates"]
-        A1["Input Validation"]
-        A2["Prompt Injection Check"]
-        A3["PII Detection"]
-    end
-
-    subgraph PHASE2["Phase 2: Optimization"]
-        B1["Budget Check"]
-        B2["Cache Lookup"]
-        B3["Model Selection<br/>Sonnet vs Haiku"]
-    end
-
-    subgraph PHASE3["Phase 3: Context"]
-        C1["Fetch Forensic Logs"]
-        C2["OSINT Enrichment"]
-        C3["RAG Knowledge Query"]
-    end
-
-    subgraph PHASE4["Phase 4: AI Analysis"]
-        D1["Build Prompt"]
-        D2["Call Claude API"]
-        D3["Parse Response"]
-    end
-
-    subgraph PHASE5["Phase 5: Validation"]
-        E1["Output Structure Check"]
-        E2["Dangerous Command Check"]
-        E3["Confidence Validation"]
-    end
-
-    subgraph PHASE6["Phase 6: Action"]
-        F1["Store in Database"]
-        F2["Auto-close if Benign"]
-        F3["Log to Audit Trail"]
-    end
-
-    PHASE1 --> PHASE2
-    PHASE2 --> PHASE3
-    PHASE3 --> PHASE4
-    PHASE4 --> PHASE5
-    PHASE5 --> PHASE6
-
-    style PHASE1 fill:#ffcdd2
-    style PHASE2 fill:#fff9c4
-    style PHASE3 fill:#c8e6c9
-    style PHASE4 fill:#bbdefb
-    style PHASE5 fill:#e1bee7
-    style PHASE6 fill:#b2dfdb
+    %% Layer 1: Input
+    A[SIEM / EDR / Firewall] --> B[Webhook API]
+    
+    %% Layer 2: Processing  
+    B --> C[Parser]
+    C --> D[MITRE Mapper]
+    D --> E[Severity Classifier]
+    
+    %% Layer 3: Queue
+    E --> F{Queue Manager}
+    F --> G[Priority Queue]
+    F --> H[Standard Queue]
+    
+    %% Layer 4: AI Pipeline
+    G --> I[Security Guard]
+    H --> I
+    I --> J[Context Builder]
+    
+    %% Context Sources
+    K[(Supabase DB)] --> J
+    L[(ChromaDB RAG)] --> J
+    M[OSINT APIs] --> J
+    
+    %% Layer 5: AI
+    J --> N[Claude AI]
+    
+    %% Layer 6: Output
+    N --> O{Verdict}
+    O --> P[Malicious]
+    O --> Q[Suspicious]
+    O --> R[Benign]
+    
+    %% Layer 7: Actions
+    P --> S[Dashboard]
+    Q --> S
+    R --> T[Auto-Close]
+    
+    %% Backup
+    K -.-> U[S3 Backup]
 ```
 
 ---
 
-## Data Flow Diagram
+## Alternative: Vertical Flow (Top to Bottom)
 
 ```mermaid
 flowchart TD
-    ALERT["🚨 Security Alert"]
+    A[Security Tools] --> B[Ingestion API]
+    B --> C[Parser + MITRE]
+    C --> D[Queue Manager]
     
-    ALERT --> PARSE["Parse & Normalize"]
-    PARSE --> CLASSIFY["Classify Severity"]
-    CLASSIFY --> ROUTE{"Route by Risk Score"}
+    D --> E[Priority]
+    D --> F[Standard]
     
-    ROUTE -->|"Risk ≥ 75"| PRIORITY["Priority Queue"]
-    ROUTE -->|"Risk < 75"| STANDARD["Standard Queue"]
+    E --> G[AI Pipeline]
+    F --> G
     
-    PRIORITY --> GATHER["Gather Evidence"]
-    STANDARD --> GATHER
+    H[(Database)] --> G
+    I[(RAG)] --> G
+    J[OSINT] --> G
     
-    GATHER --> DB[(Supabase)]
-    GATHER --> OSINT["OSINT APIs"]
-    GATHER --> KNOWLEDGE[(ChromaDB)]
+    G --> K[Claude AI]
+    K --> L{Decision}
     
-    DB --> BUILD["Build Context"]
-    OSINT --> BUILD
-    KNOWLEDGE --> BUILD
+    L -->|Malicious| M[Alert Analyst]
+    L -->|Suspicious| N[Review Queue]
+    L -->|Benign| O[Auto-Close]
     
-    BUILD --> CLAUDE["🤖 Claude AI"]
-    
-    CLAUDE --> VERDICT{"Verdict?"}
-    
-    VERDICT -->|"Malicious"| CRITICAL["🔴 Show to Analyst"]
-    VERDICT -->|"Suspicious"| REVIEW["🟡 Review Required"]
-    VERDICT -->|"Benign + High Conf"| AUTO["🟢 Auto-Close"]
-    
-    CRITICAL --> DASHBOARD["📊 Dashboard"]
-    REVIEW --> DASHBOARD
-    AUTO --> HISTORY["📁 History"]
-    
-    style ALERT fill:#ff5722,color:#fff
-    style CLAUDE fill:#9c27b0,color:#fff
-    style CRITICAL fill:#f44336,color:#fff
-    style REVIEW fill:#ff9800,color:#fff
-    style AUTO fill:#4caf50,color:#fff
+    M --> P[Dashboard]
+    N --> P
 ```
 
 ---
 
-## RAG Knowledge Collections
+## Detailed Version with All Components
 
 ```mermaid
-graph LR
-    subgraph RAG["ChromaDB RAG System"]
-        M["mitre_severity<br/>201 techniques"]
-        H["historical_analyses<br/>Past alerts"]
-        B["business_rules<br/>Org policies"]
-        A["attack_patterns<br/>IOCs & TTPs"]
-        D["detection_rules<br/>SIEM rules"]
-        S["detection_signatures<br/>Regex patterns"]
-        I["company_infrastructure<br/>Asset context"]
+flowchart TD
+    subgraph INPUT["1. DATA SOURCES"]
+        S1[SIEM]
+        S2[EDR]
+        S3[Firewall]
     end
-
-    ALERT["Alert"] --> QUERY["Semantic Query"]
-    QUERY --> M
-    QUERY --> H
-    QUERY --> B
-    QUERY --> A
-    QUERY --> D
-    QUERY --> S
-    QUERY --> I
     
-    M --> CONTEXT["Combined Context"]
-    H --> CONTEXT
-    B --> CONTEXT
-    A --> CONTEXT
-    D --> CONTEXT
-    S --> CONTEXT
-    I --> CONTEXT
+    subgraph INGEST["2. INGESTION"]
+        I1[Webhook /ingest]
+        I2[Parser]
+        I3[MITRE Mapper]
+        I4[Severity Classifier]
+    end
     
-    CONTEXT --> CLAUDE["Claude AI"]
-
-    style RAG fill:#e3f2fd
-    style CLAUDE fill:#9c27b0,color:#fff
+    subgraph QUEUE["3. QUEUE"]
+        Q1[Queue Manager]
+        Q2[Priority Queue]
+        Q3[Standard Queue]
+    end
+    
+    subgraph CONTEXT["4. CONTEXT"]
+        C1[(Supabase)]
+        C2[(ChromaDB)]
+        C3[OSINT APIs]
+    end
+    
+    subgraph AI["5. AI ANALYSIS"]
+        A1[Input Guard]
+        A2[Budget Tracker]
+        A3[Context Builder]
+        A4[Claude API]
+        A5[Output Guard]
+    end
+    
+    subgraph OUTPUT["6. OUTPUT"]
+        O1{Verdict}
+        O2[Malicious]
+        O3[Suspicious]
+        O4[Benign]
+    end
+    
+    subgraph DASH["7. DASHBOARD"]
+        D1[Analyst Console]
+        D2[AI Transparency]
+        D3[Performance]
+    end
+    
+    %% Flow
+    S1 --> I1
+    S2 --> I1
+    S3 --> I1
+    I1 --> I2 --> I3 --> I4
+    I4 --> Q1
+    Q1 --> Q2
+    Q1 --> Q3
+    Q2 --> A1
+    Q3 --> A1
+    A1 --> A2 --> A3
+    C1 --> A3
+    C2 --> A3
+    C3 --> A3
+    A3 --> A4 --> A5
+    A5 --> O1
+    O1 --> O2
+    O1 --> O3
+    O1 --> O4
+    O2 --> D1
+    O3 --> D1
+    O4 -.->|Auto-Close| C1
+    C1 --> D1
+    C1 --> D2
+    C1 --> D3
 ```
 
 ---
 
-## Quick Copy-Paste for mermaid.live
+## Simple Overview (Best for Presentations)
 
-Go to https://mermaid.live and paste this simplified version:
-
-```
-flowchart TB
-    SIEM["🔒 SIEM/EDR"] --> INGEST["📥 Ingestion API"]
-    INGEST --> PARSE["Parser + MITRE Mapper"]
-    PARSE --> QUEUE["📋 Queue Manager"]
+```mermaid
+flowchart LR
+    A[Security<br/>Alerts] --> B[Ingestion<br/>& Queue]
+    B --> C[AI Analysis<br/>Pipeline]
     
-    QUEUE --> PQ["🔴 Priority Queue"]
-    QUEUE --> SQ["🟡 Standard Queue"]
+    D[(Database)] --> C
+    E[(Knowledge<br/>Base)] --> C
     
-    PQ --> AI["🤖 AI Pipeline"]
-    SQ --> AI
+    C --> F[Claude AI]
+    F --> G{Decision}
     
-    DB[(Supabase)] --> AI
-    RAG[(ChromaDB RAG)] --> AI
-    OSINT["🌐 OSINT"] --> AI
-    
-    AI --> CLAUDE["Claude AI<br/>Sonnet/Haiku"]
-    CLAUDE --> VERDICT{"Verdict"}
-    
-    VERDICT --> MAL["🔴 Malicious"]
-    VERDICT --> SUS["🟡 Suspicious"]  
-    VERDICT --> BEN["🟢 Benign"]
-    
-    MAL --> DASH["📊 Dashboard"]
-    SUS --> DASH
-    BEN --> AUTO["Auto-Close"]
-    
-    DASH --> ANALYST["Analyst Console"]
-    DASH --> TRANS["AI Transparency"]
-    DASH --> PERF["Performance"]
-    
-    DB -.-> S3["☁️ S3 Backup"]
+    G --> H[Analyst<br/>Dashboard]
+    G --> I[Auto<br/>Close]
 ```
 
 ---
 
-## PlantUML Version (Alternative)
+## 6-Phase AI Pipeline (Horizontal)
 
-If you prefer PlantUML, use https://www.plantuml.com/plantuml/uml/
+```mermaid
+flowchart LR
+    P1[Phase 1<br/>Security Gates] --> P2[Phase 2<br/>Optimization]
+    P2 --> P3[Phase 3<br/>Context Gathering]
+    P3 --> P4[Phase 4<br/>AI Analysis]
+    P4 --> P5[Phase 5<br/>Validation]
+    P5 --> P6[Phase 6<br/>Action]
+    
+    style P1 fill:#ffcdd2
+    style P2 fill:#fff9c4
+    style P3 fill:#c8e6c9
+    style P4 fill:#bbdefb
+    style P5 fill:#e1bee7
+    style P6 fill:#b2dfdb
+```
 
-```plantuml
-@startuml
-!theme cerulean
+---
 
-title AI-SOC Watchdog Architecture
+## RAG Knowledge Base
 
-package "Data Sources" {
-  [SIEM] as siem
-  [EDR] as edr
-  [Firewall] as fw
-}
+```mermaid
+flowchart LR
+    A[Alert] --> B[Query]
+    B --> C[ChromaDB]
+    
+    subgraph C[ChromaDB Collections]
+        C1[MITRE Techniques]
+        C2[Historical Alerts]
+        C3[Business Rules]
+        C4[Attack Patterns]
+        C5[Detection Rules]
+    end
+    
+    C --> D[Combined Context]
+    D --> E[Claude AI]
+```
 
-package "Backend (Flask)" {
-  [Parser] as parser
-  [MITRE Mapper] as mitre
-  [Queue Manager] as queue
-}
+---
 
-package "AI Pipeline" {
-  [Security Guards] as guard
-  [Context Builder] as context
-  [Claude AI] as claude
-}
+## Tech Stack Summary
 
-database "Supabase" as db
-database "ChromaDB" as rag
-cloud "OSINT APIs" as osint
-cloud "AWS S3" as s3
-
-package "React Dashboard" {
-  [Analyst Console] as analyst
-  [AI Transparency] as trans
-  [Performance] as perf
-}
-
-siem --> parser
-edr --> parser
-fw --> parser
-
-parser --> mitre
-mitre --> queue
-queue --> guard
-guard --> context
-
-db --> context
-rag --> context
-osint --> context
-
-context --> claude
-claude --> db
-
-db --> analyst
-db --> trans
-db --> perf
-
-db ..> s3 : backup
-
-@enduml
+```mermaid
+flowchart LR
+    subgraph Frontend
+        R[React + Vite]
+    end
+    
+    subgraph Backend
+        F[Flask API]
+    end
+    
+    subgraph AI
+        CL[Claude API]
+    end
+    
+    subgraph Storage
+        S[(Supabase)]
+        CH[(ChromaDB)]
+        S3[AWS S3]
+    end
+    
+    R <--> F
+    F <--> CL
+    F <--> S
+    F <--> CH
+    S -.-> S3
 ```
