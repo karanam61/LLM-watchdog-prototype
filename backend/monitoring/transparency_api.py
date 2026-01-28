@@ -38,6 +38,7 @@ Author: AI-SOC Watchdog System
 from flask import Blueprint, jsonify, request
 import sys
 import os
+import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -46,6 +47,28 @@ from ai.rag_system import RAGSystem
 from monitoring.live_logger import live_logger
 
 transparency_bp = Blueprint('transparency', __name__)
+
+# Simple cache for transparency proofs - expires after 5 minutes
+_transparency_cache = {}
+_cache_ttl = 300  # 5 minutes
+
+def get_cached_proof(alert_id):
+    """Get cached proof if still valid"""
+    if alert_id in _transparency_cache:
+        data, timestamp = _transparency_cache[alert_id]
+        if time.time() - timestamp < _cache_ttl:
+            return data
+        else:
+            del _transparency_cache[alert_id]
+    return None
+
+def set_cached_proof(alert_id, data):
+    """Cache proof with timestamp"""
+    _transparency_cache[alert_id] = (data, time.time())
+    # Limit cache size
+    if len(_transparency_cache) > 100:
+        oldest = min(_transparency_cache.keys(), key=lambda k: _transparency_cache[k][1])
+        del _transparency_cache[oldest]
 
 @transparency_bp.route('/api/transparency/proof/<alert_id>', methods=['GET'])
 def get_transparency_proof(alert_id):
@@ -75,6 +98,12 @@ def get_transparency_proof(alert_id):
     )
     
     try:
+        # Check cache first for fast response
+        cached = get_cached_proof(alert_id)
+        if cached:
+            live_logger.log('AI', 'Cache HIT - Returning cached transparency proof', {'alert_id': alert_id, '_explanation': 'Cached proof returned instantly'})
+            return jsonify(cached)
+        
         # Get alert
         response = supabase.table('alerts').select('*').eq('id', alert_id).execute()
         if not response.data:
@@ -183,10 +212,9 @@ def get_transparency_proof(alert_id):
             final_verdict = 'NEEDS_REVIEW - Analysis may be incomplete'
         
         # Return in format expected by TransparencyDashboard.jsx
-        return jsonify({
+        result = {
             'alert_id': alert_id,
             'alert_name': alert['alert_name'],
-            # Nested verification object expected by frontend (lines 220-242)
             'verification': {
                 'verification_score': verification_score,
                 'final_verdict': final_verdict,
@@ -194,7 +222,6 @@ def get_transparency_proof(alert_id):
                 'missing_facts': missing_facts,
                 'rag_usage': rag_usage_list
             },
-            # Alert data for expandable section (line 329)
             'alert_data': {
                 'id': alert['id'],
                 'alert_name': alert['alert_name'],
@@ -204,7 +231,6 @@ def get_transparency_proof(alert_id):
                 'dest_ip': alert.get('dest_ip'),
                 'description': alert.get('description')
             },
-            # AI analysis for expandable section (lines 354-411)
             'ai_analysis': {
                 'verdict': alert.get('ai_verdict'),
                 'confidence': alert.get('ai_confidence', 0),
@@ -212,20 +238,23 @@ def get_transparency_proof(alert_id):
                 'evidence': evidence_list,
                 'chain_of_thought': alert.get('ai_chain_of_thought', [])
             },
-            # Correlated logs for expandable section (lines 417-453)
             'correlated_logs': {
                 'network': network_logs,
                 'process': process_logs,
                 'file': file_logs
             },
-            # Legacy fields for backward compatibility
             'rag_sources': rag_data,
             'log_counts': {
                 'network': len(network_logs),
                 'process': len(process_logs),
                 'file': len(file_logs)
             }
-        })
+        }
+        
+        # Cache the result for faster subsequent requests
+        set_cached_proof(alert_id, result)
+        
+        return jsonify(result)
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500

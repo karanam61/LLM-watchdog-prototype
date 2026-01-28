@@ -9,6 +9,7 @@ const api = axios.create({
         'Content-Type': 'application/json',
     },
     withCredentials: false,  // Must be false when using CORS wildcard '*'
+    timeout: 120000,  // 2 minute timeout for slow RAG queries
 });
 
 // Handle 401 responses globally

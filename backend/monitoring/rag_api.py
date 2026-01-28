@@ -34,6 +34,8 @@ Author: AI-SOC Watchdog System
 from flask import Blueprint, jsonify, request
 import sys
 import os
+import time
+from functools import lru_cache
 
 # Ensure backend is in path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -42,6 +44,28 @@ from storage.database import supabase
 from monitoring.live_logger import live_logger
 
 rag_monitoring_bp = Blueprint('rag_monitoring', __name__)
+
+# Simple cache for RAG results - expires after 5 minutes
+_rag_cache = {}
+_cache_ttl = 300  # 5 minutes
+
+def get_cached_rag_data(alert_id):
+    """Get cached RAG data if still valid"""
+    if alert_id in _rag_cache:
+        data, timestamp = _rag_cache[alert_id]
+        if time.time() - timestamp < _cache_ttl:
+            return data
+        else:
+            del _rag_cache[alert_id]
+    return None
+
+def set_cached_rag_data(alert_id, data):
+    """Cache RAG data with timestamp"""
+    _rag_cache[alert_id] = (data, time.time())
+    # Limit cache size to 100 entries
+    if len(_rag_cache) > 100:
+        oldest = min(_rag_cache.keys(), key=lambda k: _rag_cache[k][1])
+        del _rag_cache[oldest]
 
 @rag_monitoring_bp.route('/api/rag/usage/<alert_id>', methods=['GET'])
 def get_rag_usage_for_alert(alert_id):
@@ -76,6 +100,12 @@ def get_rag_usage_for_alert(alert_id):
     
     try:
         start_time = time.time()
+        
+        # Check cache first for fast response
+        cached = get_cached_rag_data(alert_id)
+        if cached:
+            live_logger.log('RAG', 'Cache HIT - Returning cached RAG data', {'alert_id': alert_id, '_explanation': 'Cached result returned instantly'})
+            return jsonify(cached)
         
         # Import here to avoid circular imports
         from ai.rag_system import RAGSystem
@@ -252,6 +282,9 @@ def get_rag_usage_for_alert(alert_id):
                 'sources_with_docs': [s for s in sources_queried if len(retrieved_by_source.get(s, [])) > 0]
             }
         )
+        
+        # Cache the result for faster subsequent requests
+        set_cached_rag_data(alert_id, result)
         
         return jsonify(result)
     
