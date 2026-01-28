@@ -46,12 +46,12 @@ class AlertInput(BaseModel):
     alert_id: str = Field(..., description="Alert UUID", alias='id')
     alert_name: str = Field(..., min_length=1, description="Alert name")
     
-    # Fields with smart defaults
-    mitre_technique: str = Field(default="T0000.000", description="MITRE technique ID")
-    severity: str = Field(default="medium", description="Alert severity")
-    hostname: str = Field(default="unknown-host", description="Hostname")
-    username: str = Field(default="unknown-user", description="Username")
-    description: str = Field(default="No description provided", description="Alert description")
+    # Fields with smart defaults - use Optional to accept None from database
+    mitre_technique: Optional[str] = Field(default="T0000.000", description="MITRE technique ID")
+    severity: Optional[str] = Field(default="medium", description="Alert severity")
+    hostname: Optional[str] = Field(default="unknown-host", description="Hostname")
+    username: Optional[str] = Field(default="unknown-user", description="Username")
+    description: Optional[str] = Field(default="No description provided", description="Alert description")
     timestamp: Optional[str] = Field(default=None, description="ISO timestamp")
     
     # Optional fields
