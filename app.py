@@ -2170,19 +2170,20 @@ if __name__ == '__main__':
 # ========================================================
 # GRACEFUL SHUTDOWN HANDLER
 # ========================================================
+_shutdown_called = False
+
 def graceful_shutdown(signum=None, frame=None):
-    """Signal all threads to stop gracefully"""
+    """Signal all threads to stop gracefully (runs only once)"""
+    global _shutdown_called
+    if _shutdown_called:
+        return
+    _shutdown_called = True
+    
     print("\n[SHUTDOWN] Graceful shutdown initiated...")
     shutdown_event.set()
-    # Give threads a moment to finish current work
-    time.sleep(1)
     print("[SHUTDOWN] Cleanup complete")
 
-# Register signal handlers (for Ctrl+C and termination)
-signal.signal(signal.SIGINT, graceful_shutdown)
-signal.signal(signal.SIGTERM, graceful_shutdown)
-
-# Also register atexit for non-signal shutdowns
+# Register atexit for clean shutdown (signal handlers conflict with Flask debug mode)
 atexit.register(graceful_shutdown)
 
 if __name__ == '__main__':
