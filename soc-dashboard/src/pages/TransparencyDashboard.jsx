@@ -37,14 +37,22 @@ const TransparencyDashboard = () => {
     }, []);
 
     // Fetch proof for selected alert
+    const [proofLoading, setProofLoading] = useState(false);
+    const [proofError, setProofError] = useState(null);
+
     const handleAlertSelect = async (alertId) => {
         setSelectedAlert(alertId);
         setProofData(null);
+        setProofError(null);
+        setProofLoading(true);
         try {
             const res = await api.get(`/api/transparency/proof/${alertId}`);
             setProofData(res.data);
         } catch (e) {
             console.error('Failed to fetch proof:', e);
+            setProofError(e.response?.data?.error || e.message || 'Failed to load transparency proof');
+        } finally {
+            setProofLoading(false);
         }
     };
 
@@ -212,10 +220,27 @@ const TransparencyDashboard = () => {
                             <ShieldCheck size={48} className="mx-auto mb-3 opacity-50" />
                             <p>Select an alert to view AI transparency proof</p>
                         </div>
-                    ) : !proofData ? (
+                    ) : proofLoading ? (
                         <div className="text-center py-12">
                             <RefreshCcw className="animate-spin mx-auto text-cyan-500" size={40} />
-                            <p className="text-slate-500 mt-3">Generating proof...</p>
+                            <p className="text-slate-500 mt-3">Loading transparency proof...</p>
+                        </div>
+                    ) : proofError ? (
+                        <div className="text-center py-12">
+                            <ShieldCheck size={48} className="mx-auto mb-3 text-red-500 opacity-50" />
+                            <p className="text-red-400 font-semibold">Failed to load proof</p>
+                            <p className="text-slate-500 text-sm mt-2">{proofError}</p>
+                            <button 
+                                onClick={() => handleAlertSelect(selectedAlert)}
+                                className="mt-4 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors"
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    ) : !proofData ? (
+                        <div className="text-center py-12 text-slate-500">
+                            <ShieldCheck size={48} className="mx-auto mb-3 opacity-50" />
+                            <p>No transparency data available for this alert</p>
                         </div>
                     ) : (
                         <div className="space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
