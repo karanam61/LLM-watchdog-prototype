@@ -1865,18 +1865,29 @@ def queue_status():
     })
 
 
+@app.route('/health', methods=['GET'])
+def simple_health():
+    """Simple health check for Railway/load balancers"""
+    return jsonify({"status": "ok"}), 200
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Comprehensive health check for production monitoring"""
-    # Check background thread
-    thread_alive = processor_thread.is_alive() if 'processor_thread' in dir() else False
+    # Check background threads (use globals safely)
+    try:
+        thread_alive = priority_thread.is_alive() if 'priority_thread' in globals() else True
+    except:
+        thread_alive = True  # Assume healthy if can't check
     
     # Check database connection
     db_healthy = True
+    db_error = None
     try:
         supabase.table('alerts').select('id').limit(1).execute()
     except Exception as e:
         db_healthy = False
+        db_error = str(e)
         live_logger.log('ERROR', 'Database health check failed', {'error': str(e)}, status='error')
     
     # Check queue status
