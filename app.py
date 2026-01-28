@@ -157,8 +157,16 @@ if os.getenv('PRODUCTION', 'false').lower() == 'true':
         print("[SECURITY WARNING] Random session secret generated. Set SESSION_SECRET env var for persistent sessions.")
 
 # Configure CORS - allow configurable origins for deployment
-ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173').split(',')
-CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
+ALLOWED_ORIGINS_ENV = os.getenv('ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173')
+
+# Handle wildcard (*) specially - Flask-CORS needs string '*' not list ['*']
+if ALLOWED_ORIGINS_ENV.strip() == '*':
+    CORS(app, origins='*', supports_credentials=False)  # credentials=False required for wildcard
+    print("[CORS] Allowing ALL origins (wildcard mode)")
+else:
+    ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_ENV.split(',')]
+    CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
+    print(f"[CORS] Allowed origins: {ALLOWED_ORIGINS}")
 
 # Store live_logger in app config so blueprints access the same instance
 app.config['live_logger'] = live_logger
