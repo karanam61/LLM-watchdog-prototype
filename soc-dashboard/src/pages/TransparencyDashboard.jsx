@@ -19,11 +19,14 @@ const TransparencyDashboard = () => {
                     api.get('/api/transparency/summary')
                 ]);
 
-                setAlerts(alertsRes.data.alerts.filter(a => a.ai_verdict && a.ai_verdict !== 'ERROR'));
-                setSummary(summaryRes.data);
+                const alertsList = alertsRes.data?.alerts || [];
+                setAlerts(alertsList.filter(a => a.ai_verdict && a.ai_verdict !== 'ERROR'));
+                setSummary(summaryRes.data || {});
                 setLoading(false);
             } catch (e) {
                 console.error('Failed to fetch transparency data:', e);
+                setAlerts([]);
+                setSummary({});
                 setLoading(false);
             }
         };

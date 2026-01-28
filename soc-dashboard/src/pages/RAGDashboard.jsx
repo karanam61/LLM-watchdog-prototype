@@ -26,12 +26,16 @@ const RAGDashboard = () => {
                     api.get('/api/rag/collections/status')
                 ]);
 
-                setAlerts(alertsRes.data.alerts.filter(a => a.ai_verdict && a.ai_verdict !== 'ERROR'));
-                setStats(statsRes.data);
-                setCollections(collectionsRes.data.collections);
+                const alertsList = alertsRes.data?.alerts || [];
+                setAlerts(alertsList.filter(a => a.ai_verdict && a.ai_verdict !== 'ERROR'));
+                setStats(statsRes.data || {});
+                setCollections(collectionsRes.data?.collections || []);
                 setLoading(false);
             } catch (e) {
                 console.error('Failed to fetch RAG data:', e);
+                setAlerts([]);
+                setStats({});
+                setCollections([]);
                 setLoading(false);
             }
         };

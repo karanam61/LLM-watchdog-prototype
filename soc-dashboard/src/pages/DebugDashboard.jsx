@@ -16,9 +16,11 @@ const DebugDashboard = () => {
         const fetchCategories = async () => {
             try {
                 const res = await api.get('/api/monitoring/logs/categories');
-                setCategories(['all', ...res.data.categories]);
+                const cats = res.data?.categories || [];
+                setCategories(['all', ...cats]);
             } catch (e) {
                 console.error("Failed to fetch categories", e);
+                setCategories(['all']); // Fallback
             }
         };
         fetchCategories();
