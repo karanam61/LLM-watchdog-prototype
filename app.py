@@ -39,12 +39,23 @@ ARCHITECTURE:
 Author: AI-SOC Watchdog System
 """
 
-from flask import Flask, request, jsonify, g
+from flask import Flask, request, jsonify, g, session
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 import threading
 import time
+import secrets
+import re
+import signal
+import sys
+import atexit
+from functools import wraps
+
+# ========================================================
+# GRACEFUL SHUTDOWN: Flag to signal threads to stop
+# ========================================================
+shutdown_event = threading.Event()
 
 # Import Core Logic
 from backend.core.parser import parse_splunk_alert
@@ -100,8 +111,54 @@ shared_state.set_live_logger(live_logger)
 load_dotenv()
 
 app = Flask(__name__)
-# Explicitly allow all origins for robust debugging
-CORS(app)
+
+# ========================================================
+# SECURITY: Request Size Limits
+# Prevents denial-of-service via large payload uploads
+# ========================================================
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB max request size
+
+# ========================================================
+# SECURITY: Secure Cookie Settings
+# Protects session cookies from XSS and CSRF attacks
+# ========================================================
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('PRODUCTION', 'false').lower() == 'true'  # HTTPS only in production
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access to cookies
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+
+# ========================================================
+# SECURITY: Rate Limiting (Recommended for Production)
+# ========================================================
+# To add rate limiting, install Flask-Limiter:
+#   pip install Flask-Limiter
+#
+# Then add:
+#   from flask_limiter import Limiter
+#   from flask_limiter.util import get_remote_address
+#   limiter = Limiter(app=app, key_func=get_remote_address, default_limits=["200 per day", "50 per hour"])
+#
+# Apply to specific endpoints:
+#   @app.route('/ingest', methods=['POST'])
+#   @limiter.limit("10 per minute")
+#   def ingest_log(): ...
+
+# Authentication config
+app.secret_key = os.getenv('SESSION_SECRET', secrets.token_hex(32))
+AUTH_USERNAME = os.getenv('AUTH_USERNAME', 'analyst')
+AUTH_PASSWORD = os.getenv('AUTH_PASSWORD', 'watchdog123')
+
+# ========================================================
+# SECURITY: Warn if default credentials in production
+# ========================================================
+if os.getenv('PRODUCTION', 'false').lower() == 'true':
+    if AUTH_PASSWORD == 'watchdog123':
+        print("[SECURITY WARNING] Default password in use! Set AUTH_PASSWORD env var for production.")
+    if app.secret_key == secrets.token_hex(32):
+        print("[SECURITY WARNING] Random session secret generated. Set SESSION_SECRET env var for persistent sessions.")
+
+# Configure CORS - allow configurable origins for deployment
+ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173').split(',')
+CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
 
 # Store live_logger in app config so blueprints access the same instance
 app.config['live_logger'] = live_logger
@@ -115,11 +172,99 @@ app.register_blueprint(transparency_bp)
 ai_tracer = AIOperationTracer(monitor)
 
 # ========================================================
+# AUTHENTICATION ENDPOINTS
+# ========================================================
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    data = request.json
+    username = data.get('username', '')
+    password = data.get('password', '')
+    
+    # Timing-safe comparison to prevent timing attacks
+    username_match = secrets.compare_digest(username, AUTH_USERNAME)
+    password_match = secrets.compare_digest(password, AUTH_PASSWORD)
+    
+    if username_match and password_match:
+        session['authenticated'] = True
+        session['username'] = username
+        live_logger.log('AUTH', 'Login successful', {'username': username}, status='success')
+        return jsonify({'success': True, 'username': username})
+    
+    live_logger.log('AUTH', 'Login failed', {'username': username}, status='error')
+    return jsonify({'error': 'Invalid credentials'}), 401
+
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    username = session.get('username', 'unknown')
+    session.clear()
+    live_logger.log('AUTH', 'Logout', {'username': username}, status='success')
+    return jsonify({'success': True})
+
+@app.route('/api/auth/check', methods=['GET'])
+def check_auth():
+    if session.get('authenticated'):
+        return jsonify({'authenticated': True, 'username': session.get('username')})
+    return jsonify({'authenticated': False}), 401
+
+# Authentication disabled for hosting demo
+# To enable: uncomment the require_auth middleware below
+
+# PUBLIC_ENDPOINTS = ['/api/auth/login', '/api/auth/check', '/api/auth/logout', '/api/health']
+# 
+# @app.before_request
+# def require_auth():
+#     if request.method == 'OPTIONS':
+#         return None
+#     if request.path in PUBLIC_ENDPOINTS:
+#         return None
+#     if request.path == '/ingest':
+#         return None
+#     if not session.get('authenticated'):
+#         return jsonify({'error': 'Authentication required'}), 401
+
+# ========================================================
+# SECURITY: Sensitive Data Redaction for Logging
+# Prevents accidental exposure of secrets in logs
+# ========================================================
+SENSITIVE_HEADERS = {'authorization', 'cookie', 'x-api-key', 'x-ingest-key'}
+SENSITIVE_BODY_FIELDS = {'password', 'token', 'secret', 'api_key', 'apikey', 'access_token', 'refresh_token'}
+
+def redact_sensitive_data(data, is_headers=False):
+    """
+    Redact sensitive information from headers or JSON body before logging.
+    
+    Args:
+        data: dict of headers or JSON body
+        is_headers: if True, treats keys case-insensitively for header matching
+    
+    Returns:
+        Redacted copy of the data (original unchanged)
+    """
+    if not isinstance(data, dict):
+        return data
+    
+    redacted = {}
+    for key, value in data.items():
+        key_lower = key.lower()
+        
+        if is_headers and key_lower in SENSITIVE_HEADERS:
+            redacted[key] = '[REDACTED]'
+        elif not is_headers and key_lower in SENSITIVE_BODY_FIELDS:
+            redacted[key] = '[REDACTED]'
+        elif isinstance(value, dict):
+            redacted[key] = redact_sensitive_data(value, is_headers=False)
+        else:
+            redacted[key] = value
+    
+    return redacted
+
+# ========================================================
 # [DEBUG] GLOBAL DEBUG LOGGING MIDDLEWARE
 # ========================================================
 @app.before_request
 def log_request_info():
-    """Log every incoming request"""
+    """Log every incoming request with sensitive data redacted"""
     # Skip noisy polling logs from the dashboard
     if request.path == '/api/debug-logs': return
     if request.path == '/alerts' and request.method in ['GET', 'OPTIONS']: return
@@ -129,12 +274,17 @@ def log_request_info():
     # Capture request details once for structured logging
     body = None
     if request.is_json:
-        body = str(request.json)
+        # Redact sensitive fields before logging
+        redacted_body = redact_sensitive_data(request.json, is_headers=False)
+        body = str(redacted_body)
         if len(body) > 500:
             body = body[:500] + "..."
 
+    # Redact sensitive headers before logging
+    redacted_headers = redact_sensitive_data(dict(request.headers), is_headers=True)
+    
     print(f"\n[API] [API REQUEST] {request.method} {request.path}")
-    print(f"   Headers: {dict(request.headers)}")
+    print(f"   Headers: {redacted_headers}")
     if request.is_json:
         # Truncate long bodies for readability
         print(f"   Body: {body}")
@@ -143,7 +293,7 @@ def log_request_info():
 
 @app.after_request
 def log_response_info(response):
-    """Log every outgoing response"""
+    """Log every outgoing response with sensitive data redacted"""
     if request.path == '/api/debug-logs': return response
     if request.path == '/alerts' and request.method in ['GET', 'OPTIONS']: return response
     
@@ -159,13 +309,17 @@ def log_response_info(response):
     # Add educational context for each endpoint
     endpoint_info = get_endpoint_educational_info(request.method, request.path)
     
+    # SECURITY: Use the already-redacted body from g.request_body
+    # (redaction was applied in log_request_info before_request handler)
+    redacted_body = getattr(g, 'request_body', None)
+    
     live_logger.log(
         'API',
         f"{request.method} {request.path}",
         {
             'status_code': status,
             'query': request.query_string.decode('utf-8', errors='ignore'),
-            'body': g.request_body,
+            'body': redacted_body,
             'response_size': response.content_length,
             **endpoint_info  # Include educational details
         },
@@ -527,10 +681,128 @@ def get_debug_logs():
                 
         return jsonify({"logs": logs})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"[ERROR] Internal error: {e}")
+        live_logger.log('ERROR', 'Internal error', {'error': str(e)}, status='error')
+        return jsonify({"error": "An internal error occurred"}), 500
 
-# Background processor function
+# =========================================================================
+# PARALLEL QUEUE PROCESSORS - Priority and Standard run independently
+# =========================================================================
+
+def process_single_alert(alert, queue_type="standard"):
+    """Process a single alert through AI analysis"""
+    try:
+        alert_id = alert.get('alert_id') or alert.get('id')
+        if not alert_id:
+            return None
+            
+        print(f"[{queue_type.upper()}] Analyzing: {alert.get('alert_name', 'Unknown')[:40]}...")
+        
+        start_time = time.time()
+        ai_result = analyzer.analyze_alert(alert)
+        duration = time.time() - start_time
+        
+        update_alert_with_ai_analysis(alert_id, ai_result)
+        
+        verdict = ai_result.get('verdict', 'unknown')
+        confidence = ai_result.get('confidence', 0)
+        
+        print(f"[{queue_type.upper()}] Done: {verdict} ({confidence*100:.0f}%) in {duration:.1f}s")
+        
+        # AUTO-CLOSE benign low severity alerts
+        if verdict.lower() == 'benign' and confidence >= 0.7:
+            severity_class = alert.get('severity_class', 'MEDIUM_LOW')
+            if severity_class != 'CRITICAL_HIGH':
+                try:
+                    supabase.table('alerts').update({
+                        'status': 'closed',
+                        'auto_closed': True,
+                        'auto_close_reason': f'AI: benign ({confidence:.0%})'
+                    }).eq('id', alert_id).execute()
+                    print(f"[AUTO-CLOSE] {alert_id[:8]}...")
+                except:
+                    pass
+        
+        return ai_result
+        
+    except Exception as e:
+        print(f"[ERROR] Analysis failed: {e}")
+        # Store error in database
+        try:
+            update_alert_with_ai_analysis(alert.get('alert_id') or alert.get('id'), {
+                'verdict': 'ERROR',
+                'confidence': 0,
+                'evidence': [f'Error: {str(e)}'],
+                'reasoning': f'Analysis failed: {str(e)}'
+            })
+        except:
+            pass
+        return None
+
+
+def priority_queue_worker():
+    """Process PRIORITY queue (critical/high severity) - uses Claude Sonnet"""
+    print("[OK] Priority Queue Worker started (Claude Sonnet)")
+    while not shutdown_event.is_set():
+        try:
+            if qm.priority_queue:
+                with qm.lock:
+                    if qm.priority_queue:
+                        alert = qm.priority_queue.popleft()
+                    else:
+                        alert = None
+                if alert:
+                    alert['alert_id'] = alert.get('alert_id') or alert.get('id')
+                    process_single_alert(alert, "priority")
+            time.sleep(0.5)
+        except Exception as e:
+            if not shutdown_event.is_set():
+                print(f"[PRIORITY ERROR] {e}")
+            time.sleep(2)
+    print("[SHUTDOWN] Priority Queue Worker stopped")
+
+
+def standard_queue_worker():
+    """Process STANDARD queue (medium/low severity) - runs in parallel"""
+    print("[OK] Standard Queue Worker started")
+    while not shutdown_event.is_set():
+        try:
+            if qm.standard_queue:
+                with qm.lock:
+                    if qm.standard_queue:
+                        alert = qm.standard_queue.popleft()
+                    else:
+                        alert = None
+                if alert:
+                    alert['alert_id'] = alert.get('alert_id') or alert.get('id')
+                    process_single_alert(alert, "standard")
+            time.sleep(0.5)
+        except Exception as e:
+            if not shutdown_event.is_set():
+                print(f"[STANDARD ERROR] {e}")
+            time.sleep(2)
+    print("[SHUTDOWN] Standard Queue Worker stopped")
+
+
+# LEGACY - Keep old function name for compatibility but simplified
 def background_queue_processor():
+    """Legacy processor - now just monitors queue health"""
+    while not shutdown_event.is_set():
+        try:
+            time.sleep(10)
+            if shutdown_event.is_set():
+                break
+            p_count = len(qm.priority_queue)
+            s_count = len(qm.standard_queue)
+            if p_count > 0 or s_count > 0:
+                print(f"[QUEUE STATUS] Priority: {p_count} | Standard: {s_count}")
+        except:
+            pass
+    print("[SHUTDOWN] Queue monitor stopped")
+
+
+# OLD CODE BELOW - REPLACED BY PARALLEL WORKERS
+def _old_background_queue_processor():
     """Continuously process queues in background"""
     while True:
         try:
@@ -774,10 +1046,78 @@ def background_queue_processor():
              print(f"[ERROR] CRITICAL BACKGROUND THREAD ERROR: {e}")
              time.sleep(5) # Wait before retry to prevent log flooding
 
-# Start background thread
-processor_thread = threading.Thread(target=background_queue_processor, daemon=True)
-processor_thread.start()
-print("[OK] Background queue processor started")
+# Start PARALLEL queue workers
+priority_thread = threading.Thread(target=priority_queue_worker, daemon=True)
+priority_thread.start()
+
+standard_thread = threading.Thread(target=standard_queue_worker, daemon=True)
+standard_thread.start()
+
+# Start queue monitor (legacy compatibility)
+monitor_thread = threading.Thread(target=background_queue_processor, daemon=True)
+monitor_thread.start()
+print("[OK] Parallel queue workers started (Priority + Standard)")
+
+# =========================================================================
+# DATABASE SCANNER - Auto-queue pending alerts from database
+# =========================================================================
+
+def scan_and_queue_pending_alerts():
+    """
+    Scan database for alerts that haven't been analyzed and add them to queue.
+    This ensures alerts are processed even if:
+    - Server was restarted
+    - Alerts were inserted directly into database
+    - Queue was lost
+    """
+    try:
+        # Get alerts that are open but have no AI verdict
+        response = supabase.table('alerts').select('*').eq('status', 'open').is_('ai_verdict', 'null').order('created_at', desc=True).limit(100).execute()
+        pending_alerts = response.data
+        
+        if pending_alerts:
+            print(f"[SCANNER] Found {len(pending_alerts)} pending alerts in database")
+            
+            for alert in pending_alerts:
+                # Add alert_id field (database uses 'id')
+                alert['alert_id'] = alert.get('id')
+                severity_class = alert.get('severity_class', 'MEDIUM_LOW')
+                
+                # Route to appropriate queue
+                qm.route_alert(alert, severity_class)
+            
+            print(f"[SCANNER] Queued {len(pending_alerts)} alerts for processing")
+            live_logger.log('SCANNER', 'Queued pending alerts', {'count': len(pending_alerts)}, status='success')
+        
+    except Exception as e:
+        print(f"[SCANNER] Error scanning database: {e}")
+
+def background_db_scanner():
+    """Periodically scan database for pending alerts"""
+    print("[OK] Database scanner started - checking for pending alerts every 30 seconds")
+    
+    # Initial scan on startup (wait for app to initialize)
+    time.sleep(5)
+    if shutdown_event.is_set():
+        return
+    scan_and_queue_pending_alerts()
+    
+    # Then scan every 30 seconds
+    while not shutdown_event.is_set():
+        # Use event.wait() instead of sleep() for responsive shutdown
+        shutdown_event.wait(30)
+        if shutdown_event.is_set():
+            break
+        try:
+            scan_and_queue_pending_alerts()
+        except Exception as e:
+            if not shutdown_event.is_set():
+                print(f"[SCANNER] Error: {e}")
+    print("[SHUTDOWN] Database scanner stopped")
+
+# Start database scanner thread
+scanner_thread = threading.Thread(target=background_db_scanner, daemon=True)
+scanner_thread.start()
 
 # =========================================================================
 # S3 SYNC WORKER - Periodic backup to S3 for failover
@@ -798,8 +1138,10 @@ def background_s3_sync():
     
     # Initial sync on startup
     time.sleep(10)  # Wait for app to fully initialize
+    if shutdown_event.is_set():
+        return
     
-    while True:
+    while not shutdown_event.is_set():
         try:
             # Only sync if NOT in failover mode (Supabase is working)
             if not is_in_failover_mode():
@@ -824,18 +1166,20 @@ def background_s3_sync():
             else:
                 print("[S3 Sync] Skipped - currently in failover mode (Supabase down)")
             
-            # Sync every 5 minutes
-            time.sleep(300)
+            # Sync every 5 minutes (use event.wait for responsive shutdown)
+            shutdown_event.wait(300)
             
         except Exception as e:
-            print(f"[S3 Sync] Error: {e}")
-            live_logger.log(
-                'ERROR',
-                'S3 Sync Failed',
-                {'error': str(e)},
-                status='error'
-            )
-            time.sleep(60)  # Wait 1 minute before retry
+            if not shutdown_event.is_set():
+                print(f"[S3 Sync] Error: {e}")
+                live_logger.log(
+                    'ERROR',
+                    'S3 Sync Failed',
+                    {'error': str(e)},
+                    status='error'
+                )
+            shutdown_event.wait(60)  # Wait 1 minute before retry
+    print("[SHUTDOWN] S3 Sync Worker stopped")
 
 # Start S3 sync thread
 if S3_FAILOVER_ENABLED:
@@ -940,29 +1284,37 @@ def ingest_log():
         status='success'
     )
     
-    # SECURITY: Require API Key for ingestion
-    api_key = request.headers.get('X-API-Key')
-    if api_key != os.getenv("INGEST_API_KEY", "secure-ingest-key-123"):
-        live_logger.log(
-            'SECURITY', 
-            'API Key Validation FAILED',
-            {
-                'ip': request.remote_addr,
-                '_explanation': 'Security check failed - invalid or missing API key. All ingestion requests must include a valid X-API-Key header.'
-            },
-            status='error'
-        )
-        return jsonify({"error": "Unauthorized: Invalid API Key"}), 401
+    # ========================================================
+    # SECURITY: Optional API Key Protection for Ingestion
+    # ========================================================
+    # If INGEST_API_KEY env var is set, require X-Ingest-Key header.
+    # This is optional - if INGEST_API_KEY is not set, ingestion is open.
+    # For production, set INGEST_API_KEY to a secure random value.
+    ingest_api_key = os.getenv("INGEST_API_KEY")
+    if ingest_api_key:
+        provided_key = request.headers.get('X-Ingest-Key', '')
+        # Use timing-safe comparison to prevent timing attacks
+        if not secrets.compare_digest(provided_key, ingest_api_key):
+            live_logger.log(
+                'SECURITY', 
+                'Ingest API Key Validation FAILED',
+                {
+                    'ip': request.remote_addr,
+                    '_explanation': 'Security check failed - invalid or missing X-Ingest-Key header.'
+                },
+                status='error'
+            )
+            return jsonify({"error": "Unauthorized"}), 401
 
-    live_logger.log(
-        'SECURITY',
-        'API Key Validated',
-        {
-            'endpoint': '/ingest',
-            '_explanation': 'API key verified. Request is authorized to proceed.'
-        },
-        status='success'
-    )
+        live_logger.log(
+            'SECURITY',
+            'Ingest API Key Validated',
+            {
+                'endpoint': '/ingest',
+                '_explanation': 'X-Ingest-Key verified. Request is authorized to proceed.'
+            },
+            status='success'
+        )
     
     try:
         data = request.json
@@ -1243,55 +1595,53 @@ def ingest_log():
         import traceback
         traceback.print_exc()
         print("="*70 + "\n")
-        return jsonify({"error": str(e)}), 500
+        live_logger.log('ERROR', 'Internal error in /ingest', {'error': str(e)}, status='error')
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 @app.route('/alerts', methods=['GET'])
 def get_alerts():
-    """Fetch recent alerts for frontend - DETOKENIZED for analyst"""
-    # Educational logging for this endpoint
-    live_logger.log(
-        'FUNCTION',
-        'get_alerts() - Fetching Alerts for Analyst Console',
-        {
-            'endpoint': 'GET /alerts',
-            'file': 'app.py',
-            'purpose': 'Retrieve recent alerts from database for Analyst Console display',
-            'database_query': 'SELECT * FROM alerts ORDER BY created_at DESC LIMIT 50',
-            'parameters': {
-                'limit': 50,
-                'order_by': 'created_at DESC'
-            },
-            'returns': 'Array of alert objects with AI verdicts, severity, MITRE techniques',
-            '_explanation': 'This endpoint populates the Analyst Console. It fetches the 50 most recent alerts with all their data including AI analysis results.'
-        },
-        status='success'
-    )
+    """Fetch alerts with pagination for frontend"""
+    # Pagination parameters
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    status_filter = request.args.get('status', None)  # open, closed, investigating
+    verdict_filter = request.args.get('verdict', None)  # BENIGN, MALICIOUS, SUSPICIOUS
+    
+    # Limit per_page to prevent abuse
+    per_page = min(per_page, 100)
+    offset = (page - 1) * per_page
     
     try:
-        response = supabase.table('alerts').select('*').order('created_at', desc=True).limit(50).execute()
+        # Build query
+        query = supabase.table('alerts').select('*', count='exact')
         
-        # Detokenize for analyst display
-        # Detokenize for analyst display
-        detokenized_alerts = response.data
+        # Apply filters
+        if status_filter:
+            query = query.eq('status', status_filter)
+        if verdict_filter:
+            query = query.eq('ai_verdict', verdict_filter)
         
-        live_logger.log(
-            'DATABASE',
-            'Alerts Retrieved from Supabase',
-            {
-                'count': len(detokenized_alerts),
-                'table': 'alerts',
-                '_explanation': f"Retrieved {len(detokenized_alerts)} alerts from database for Analyst Console."
-            },
-            status='success'
-        )
+        # Get paginated results
+        response = query.order('created_at', desc=True).range(offset, offset + per_page - 1).execute()
+        
+        alerts = response.data
+        total_count = response.count if response.count else len(alerts)
+        total_pages = (total_count + per_page - 1) // per_page
         
         return jsonify({
-            "alerts": detokenized_alerts,
-            "count": len(detokenized_alerts)
+            "alerts": alerts,
+            "count": len(alerts),
+            "total": total_count,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"[ERROR] Internal error: {e}")
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 @app.route('/api/alerts/<alert_id>', methods=['PATCH'])
@@ -1314,20 +1664,20 @@ def update_alert_status(alert_id):
     if not update_payload:
         return jsonify({"error": "Status or analyst_notes is required"}), 400
     
-    # Educational logging for this endpoint
+    # Get current user for audit trail
+    current_user = session.get('username', 'unknown')
+    
+    # Audit logging for analyst actions
     live_logger.log(
-        'FUNCTION',
-        'update_alert_status() - Analyst Update',
+        'AUDIT',
+        'Analyst Action - Alert Update',
         {
-            'endpoint': 'PATCH /api/alerts/<alert_id>',
-            'file': 'app.py',
-            'purpose': 'Allow analysts to change alert status or add notes',
-            'parameters': {
-                'alert_id': alert_id,
-                'updates': update_payload
-            },
-            'valid_statuses': ['open', 'investigating', 'closed', 'false_positive'],
-            '_explanation': f"Analyst is updating alert {alert_id}: {update_payload}"
+            'action': 'update_alert',
+            'analyst': current_user,
+            'alert_id': alert_id,
+            'changes': update_payload,
+            'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ'),
+            '_explanation': f"Analyst '{current_user}' updated alert {alert_id}: {update_payload}"
         },
         status='success'
     )
@@ -1349,7 +1699,59 @@ def update_alert_status(alert_id):
         
     except Exception as e:
         print(f"[ERROR] Failed to update alert: {e}")
-        return jsonify({"error": str(e)}), 500
+        live_logger.log('ERROR', 'Failed to update alert', {'error': str(e)}, status='error')
+        return jsonify({"error": "An internal error occurred"}), 500
+
+
+@app.route('/api/alerts/<alert_id>/reanalyze', methods=['POST'])
+def reanalyze_alert(alert_id):
+    """Re-queue an alert for AI analysis (used for ERROR verdicts)"""
+    live_logger.log(
+        'FUNCTION',
+        'reanalyze_alert() - Re-queue for AI Analysis',
+        {
+            'endpoint': 'POST /api/alerts/<alert_id>/reanalyze',
+            'file': 'app.py',
+            'purpose': 'Reset ERROR verdict and re-queue alert for AI analysis',
+            'alert_id': alert_id,
+            '_explanation': f"Analyst requested re-analysis of alert {alert_id}. Clearing previous AI results and re-queueing."
+        },
+        status='success'
+    )
+    
+    try:
+        # Clear AI analysis fields and reset status
+        supabase.table('alerts').update({
+            'ai_verdict': None,
+            'ai_confidence': None,
+            'ai_reasoning': None,
+            'ai_evidence': None,
+            'ai_recommendation': None,
+            'status': 'open'
+        }).eq('id', alert_id).execute()
+        
+        # Fetch the alert to re-queue it
+        response = supabase.table('alerts').select('*').eq('id', alert_id).single().execute()
+        alert_data = response.data
+        
+        if alert_data:
+            # Ensure alert_id is set (database uses 'id', queue uses 'alert_id')
+            alert_data['alert_id'] = alert_data.get('id')
+            severity_class = alert_data.get('severity_class', 'MEDIUM_LOW')
+            qm.route_alert(alert_data, severity_class)
+            
+            return jsonify({
+                "success": True,
+                "message": "Alert queued for re-analysis",
+                "alert_id": alert_id
+            })
+        else:
+            return jsonify({"error": "Alert not found"}), 404
+            
+    except Exception as e:
+        print(f"[ERROR] Failed to reanalyze alert: {e}")
+        live_logger.log('ERROR', 'Failed to reanalyze alert', {'error': str(e)}, status='error')
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 @app.route('/api/logs', methods=['GET'])
@@ -1429,7 +1831,8 @@ def get_logs():
         
     except Exception as e:
         print(f"   [ERROR] Log Fetch Error: {e}")
-        return jsonify({"error": str(e)}), 500
+        live_logger.log('ERROR', 'Log fetch error', {'error': str(e)}, status='error')
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 @app.route('/queue-status', methods=['GET'])
@@ -1460,6 +1863,52 @@ def queue_status():
         "priority_count": len(qm.priority_queue),
         "standard_count": len(qm.standard_queue)
     })
+
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Comprehensive health check for production monitoring"""
+    # Check background thread
+    thread_alive = processor_thread.is_alive() if 'processor_thread' in dir() else False
+    
+    # Check database connection
+    db_healthy = True
+    try:
+        supabase.table('alerts').select('id').limit(1).execute()
+    except Exception as e:
+        db_healthy = False
+        live_logger.log('ERROR', 'Database health check failed', {'error': str(e)}, status='error')
+    
+    # Check queue status
+    queue_status = {
+        'priority_queue': len(qm.priority_queue) if qm else 0,
+        'standard_queue': len(qm.standard_queue) if qm else 0
+    }
+    
+    # Overall health
+    is_healthy = thread_alive and db_healthy
+    
+    live_logger.log(
+        'HEALTH',
+        'Health check performed',
+        {
+            'healthy': is_healthy,
+            'thread_alive': thread_alive,
+            'db_healthy': db_healthy,
+            'queues': queue_status
+        },
+        status='success' if is_healthy else 'error'
+    )
+    
+    return jsonify({
+        'status': 'healthy' if is_healthy else 'degraded',
+        'components': {
+            'queue_processor': 'running' if thread_alive else 'stopped',
+            'database': 'connected' if db_healthy else 'disconnected',
+            'queues': queue_status
+        },
+        'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ')
+    }), 200 if is_healthy else 503
 
 
 # =========================================================================
@@ -1717,4 +2166,36 @@ if __name__ == '__main__':
     )
     
     print(" [INFO] Starting Flask Server on Port 5000 (Single Process Mode)...", flush=True)
-    app.run(debug=True, use_reloader=False, port=5000)
+    
+# ========================================================
+# GRACEFUL SHUTDOWN HANDLER
+# ========================================================
+def graceful_shutdown(signum=None, frame=None):
+    """Signal all threads to stop gracefully"""
+    print("\n[SHUTDOWN] Graceful shutdown initiated...")
+    shutdown_event.set()
+    # Give threads a moment to finish current work
+    time.sleep(1)
+    print("[SHUTDOWN] Cleanup complete")
+
+# Register signal handlers (for Ctrl+C and termination)
+signal.signal(signal.SIGINT, graceful_shutdown)
+signal.signal(signal.SIGTERM, graceful_shutdown)
+
+# Also register atexit for non-signal shutdowns
+atexit.register(graceful_shutdown)
+
+if __name__ == '__main__':
+    print("\n" + "="*60)
+    print("AI-SOC WATCHDOG - STARTING SERVER")
+    print("="*60)
+    print(f"Backend: http://localhost:5000")
+    print(f"Frontend: http://localhost:5173")
+    print("="*60 + "\n")
+    
+    try:
+        app.run(host='0.0.0.0', port=5000, debug=True)
+    except KeyboardInterrupt:
+        graceful_shutdown()
+    finally:
+        shutdown_event.set()

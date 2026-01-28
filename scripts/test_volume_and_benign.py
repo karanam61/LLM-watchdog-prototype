@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
 """
-Volume & False Positive Test Script
-====================================
+Volume & False Positive Test Script (LEGACY - BIASED)
+======================================================
 
-Tests:
+⚠️  WARNING: This script has OBVIOUS alert names that give away the answer!
+    The AI can just read "Mimikatz Credential Dumping" and know it's malicious.
+    
+    USE THE NEW BLIND TESTS INSTEAD:
+    - python scripts/test_blind_with_logs.py --all       # Blind test with logs
+    - python scripts/test_comprehensive_blind.py --all   # Full blind test suite
+
+This legacy script is kept for backwards compatibility only.
+
+Old Tests:
 1. Benign alerts (false positive testing)
 2. Volume testing (100 alerts)
 3. Mixed severity testing

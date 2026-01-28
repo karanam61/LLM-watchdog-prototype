@@ -612,6 +612,52 @@ class RAGSystem:
         
         # Footer with JSON format instruction
         context_parts.append("\n" + "=" * 70)
+        context_parts.append("\n## VERDICT DECISION CRITERIA:")
+        context_parts.append("""
+### BENIGN (False Positive) - Use when activity is NORMAL and EXPECTED:
+- Administrative PowerShell/CMD usage during business hours by IT staff
+- Scheduled tasks, Windows Update, system maintenance routines
+- Internal vulnerability scans from known security tools (Nessus, Qualys, etc.)
+- Known automation tools (Ansible, SCCM, Puppet, Chef, Jenkins)
+- Software installations/updates from legitimate sources
+- Backup operations, antivirus scans, disk cleanup
+- Network traffic to known Microsoft, Google, AWS, internal domains
+- User activity matching their normal behavioral baseline
+- Events from signed/trusted executables in standard paths
+WHEN BENIGN: Clearly state "This is normal administrative activity because..." or "This is a false positive - the behavior matches routine maintenance..."
+
+### MALICIOUS - Use ONLY when there is CLEAR evidence of attack:
+- Known malware signatures, hashes, or file names
+- Connection to confirmed C2 servers or malicious IPs/domains
+- Data exfiltration patterns (large outbound transfers to unknown destinations)
+- Credential dumping tools (mimikatz, procdump on lsass, etc.)
+- Lateral movement with stolen credentials
+- Ransomware indicators (mass file encryption, shadow copy deletion)
+- Living-off-the-land binaries used in attack chains (not just admin use)
+- Persistence mechanisms (registry run keys, scheduled tasks) with malicious payloads
+
+### SUSPICIOUS - Use when genuinely uncertain:
+- Activity could be legitimate OR malicious, context is ambiguous
+- Unusual but not definitively malicious behavior
+- First-time behavior that deviates from baseline but has plausible explanation
+- Needs human investigation to determine intent
+
+## CONFIDENCE CALIBRATION:
+- 0.90-1.00: Clear, unambiguous evidence. High certainty in verdict.
+- 0.70-0.89: Strong indicators but some ambiguity. Confident but not certain.
+- 0.50-0.69: Mixed signals, could go either way. Requires human review.
+- Below 0.50: Insufficient data. Should NOT be used - default to suspicious if unsure.
+
+## FALSE POSITIVE RECOGNITION - These are typically BENIGN:
+- Windows/Microsoft Update processes (wuauclt, TrustedInstaller, MsMpEng)
+- Legitimate admin PowerShell: Get-*, Set-*, Install-*, Update-* cmdlets
+- IT ticketing/remote support tools (ServiceNow, TeamViewer, Bomgar) by IT staff
+- Scheduled antivirus scans during maintenance windows
+- Internal penetration testing (verify with security team schedule)
+- Developer tools and IDEs (Visual Studio, VS Code, Docker, npm, pip)
+- Cloud sync clients (OneDrive, Dropbox, Google Drive) in normal operation
+- VPN and network authentication events
+""")
         context_parts.append("\n## RESPONSE FORMAT REQUIREMENT:")
         context_parts.append("\nYou MUST respond with ONLY a JSON object. NO markdown, NO code blocks, NO explanations, NO additional text.")
         context_parts.append("Start your response directly with { and end with }.")
@@ -627,8 +673,8 @@ class RAGSystem:
     {"step": 4, "observation": "Pattern identified", "analysis": "Why this matters", "conclusion": "Threat level"},
     {"step": 5, "observation": "Final key finding", "analysis": "Complete picture", "conclusion": "Final verdict justification"}
   ],
-  "reasoning": "Comprehensive 300+ character synthesis of the chain of thought. Explain how all evidence points connect to form a coherent attack narrative. Reference specific log entries, MITRE tactics, historical patterns, and business impact.",
-  "recommendation": "Specific actionable steps prioritized by urgency, based on the verdict and business context."
+  "reasoning": "Comprehensive 300+ character synthesis of the chain of thought. Explain how all evidence points connect to form a coherent attack narrative. Reference specific log entries, MITRE tactics, historical patterns, and business impact. For BENIGN verdicts, explicitly explain why this is normal/expected activity.",
+  "recommendation": "Specific actionable steps prioritized by urgency, based on the verdict and business context. For BENIGN: suggest tuning detection rules or whitelisting. For MALICIOUS: immediate containment steps."
 }""")
         context_parts.append("\nCRITICAL REQUIREMENTS FOR YOUR ANALYSIS:")
         context_parts.append("1. LOG REFERENCES ARE MANDATORY: You MUST reference specific log entries by their ID")
@@ -639,11 +685,13 @@ class RAGSystem:
         context_parts.append("4. Chain of thought: 5 steps showing observation -> analysis -> conclusion")
         context_parts.append("5. Reasoning must be 300+ characters explaining how evidence connects")
         context_parts.append("6. Reference specific log entry IDs, MITRE tactics, and similar past incidents")
-        context_parts.append("7. Explain the complete attack chain and potential business impact")
+        context_parts.append("7. Explain the complete attack chain OR why this is legitimate activity")
+        context_parts.append("8. DO NOT default to 'suspicious' - make a definitive call when evidence is clear")
         context_parts.append("\nYOUR EVIDENCE ARRAY MUST INCLUDE:")
         context_parts.append("- At least one reference to each log type provided (process, network, file, windows)")
         context_parts.append("- Use the exact log IDs like [PROCESS-1], [NETWORK-1], [FILE-1], [WINDOWS-1]")
         context_parts.append("- Explain what each log entry reveals about the incident")
+        context_parts.append("- For BENIGN: Include evidence supporting why this is normal (e.g., 'IT admin account', 'business hours', 'signed Microsoft binary')")
         context_parts.append("\nDO NOT use markdown formatting. DO NOT wrap in code blocks. Return ONLY the raw JSON object.")
         context_parts.append("\n" + "=" * 70)
         

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShieldAlert, Search, CheckCircle, ExternalLink, RefreshCcw, AlertTriangle, ChevronDown, FileText, Save } from 'lucide-react';
+import { ShieldAlert, Search, CheckCircle, ExternalLink, RefreshCcw, AlertTriangle, ChevronDown, FileText, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../utils/api';
 
@@ -13,6 +13,13 @@ const AnalystDashboard = () => {
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [analystNotes, setAnalystNotes] = useState({}); // Track notes per alert
     const [savingNotes, setSavingNotes] = useState(false);
+    
+    // Pagination state
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [hasNext, setHasNext] = useState(false);
+    const [hasPrev, setHasPrev] = useState(false);
+    const perPage = 20;
 
     // Poll for alerts with retry logic
     useEffect(() => {
@@ -21,11 +28,14 @@ const AnalystDashboard = () => {
 
         const fetchAlerts = async () => {
             try {
-                const res = await api.get('/alerts');
+                const res = await api.get(`/alerts?page=${page}&per_page=${perPage}`);
 
                 const data = res.data;
                 if (data.alerts) {
                     setAlerts(data.alerts);
+                    setTotalPages(data.total_pages || 1);
+                    setHasNext(data.has_next || false);
+                    setHasPrev(data.has_prev || false);
                     retryCount = 0; // Reset on success
                 }
             } catch (e) {
@@ -41,12 +51,12 @@ const AnalystDashboard = () => {
         };
 
         fetchAlerts();
-        const interval = setInterval(fetchAlerts, 5000); // Normal polling
+        const interval = setInterval(fetchAlerts, 5000); // Poll every 5 seconds
         return () => {
             clearInterval(interval);
             clearTimeout(timeoutId);
         };
-    }, []);
+    }, [page]);
 
     const handleCloseAlert = async (id, e) => {
         if (e) e.stopPropagation();
@@ -69,6 +79,18 @@ const AnalystDashboard = () => {
         } catch (error) {
             console.error("Failed to create case:", error);
             alert("Failed to create case: " + (error.response?.data?.error || error.message));
+        }
+    };
+
+    const handleReanalyze = async (id, e) => {
+        if (e) e.stopPropagation();
+        try {
+            await api.post(`/api/alerts/${id}/reanalyze`);
+            // Update local state to show analyzing
+            setAlerts(prev => prev.map(a => a.id === id ? { ...a, ai_verdict: null, ai_reasoning: null, ai_evidence: null, status: 'open' } : a));
+        } catch (error) {
+            console.error("Failed to reanalyze:", error);
+            alert("Failed to reanalyze: " + (error.response?.data?.error || error.message));
         }
     };
 
@@ -332,6 +354,14 @@ const AnalystDashboard = () => {
                                                                     <CheckCircle size={16} className="inline mr-2" />
                                                                     Close Alert
                                                                 </button>
+                                                                {alert.ai_verdict === 'ERROR' && (
+                                                                    <button
+                                                                        className="glass-button bg-purple-500/10 text-purple-400 border border-purple-500/50 px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium hover:bg-purple-500/20"
+                                                                        onClick={(e) => handleReanalyze(alert.id, e)}
+                                                                    >
+                                                                        <RefreshCcw size={16} /> Re-analyze
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -453,6 +483,44 @@ const AnalystDashboard = () => {
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* Pagination Bar */}
+            {!loading && totalPages > 1 && (
+                <div className="mt-4 flex items-center justify-center gap-4 py-4 bg-slate-900/50 border border-slate-800 rounded-lg backdrop-blur-sm">
+                    <button
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        disabled={!hasPrev}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            hasPrev
+                                ? 'bg-slate-800 text-white border border-slate-700 hover:bg-slate-700 hover:border-cyan-500/50'
+                                : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
+                        }`}
+                    >
+                        <ChevronLeft size={16} />
+                        Previous
+                    </button>
+
+                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 rounded-lg border border-slate-700">
+                        <span className="text-slate-400 text-sm">Page</span>
+                        <span className="text-cyan-400 font-bold">{page}</span>
+                        <span className="text-slate-400 text-sm">of</span>
+                        <span className="text-white font-bold">{totalPages}</span>
+                    </div>
+
+                    <button
+                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        disabled={!hasNext}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            hasNext
+                                ? 'bg-slate-800 text-white border border-slate-700 hover:bg-slate-700 hover:border-cyan-500/50'
+                                : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
+                        }`}
+                    >
+                        Next
+                        <ChevronRight size={16} />
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

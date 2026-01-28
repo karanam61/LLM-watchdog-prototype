@@ -11,6 +11,7 @@ NO bugs - proper error handling at every step.
 SAVE THIS TO: backend/ai/alert_analyzer.py
 """
 
+import os
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
@@ -83,24 +84,18 @@ class AlertAnalyzer:
         self.budget = DynamicBudgetTracker(
             daily_limit=self.config.get('daily_budget', 2.00)
         )
-        # Mock cache for now or use real Redis if configured
-        self.cache = None 
+        # Cache configuration - uses Redis in production, in-memory for development
+        self.cache = None
         if self.config.get('enable_cache'):
-            # simple dict cache for demo
-            self.cache = {} 
-            # Implement real Redis here if needed: self.cache = RedisCache()
-            # For this 'compact' version, we'll patch the cache methods below or use a dict wrapper
-            class DictCache:
-                def __init__(self): self.store = {}
-                def get(self, k):
-                    # Convert Pydantic to dict if needed
-                    k_dict = k if isinstance(k, dict) else k.dict() if hasattr(k, 'dict') else dict(k)
-                    return self.store.get(str(k_dict.get('alert_id')))
-                def set(self, k, v):
-                    # Convert Pydantic to dict if needed
-                    k_dict = k if isinstance(k, dict) else k.dict() if hasattr(k, 'dict') else dict(k)
-                    self.store[str(k_dict.get('alert_id'))] = v
-            self.cache = DictCache()
+            try:
+                import redis
+                redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+                self.cache = redis.from_url(redis_url)
+                self.cache.ping()  # Test connection
+                logger.info("[CACHE] Redis connected")
+            except Exception as e:
+                logger.warning(f"[CACHE] Redis not available, caching disabled: {e}")
+                self.cache = None
 
         # 4. AI & Context (Features 9-13)
         self.api_client = ClaudeAPIClient()
@@ -299,13 +294,18 @@ class AlertAnalyzer:
             )
             
             if self.cache:
-                cached = self.cache.get(protected)
-                if cached:
-                    self._log_debug('FUNCTION', 'Cache HIT - Returning cached response', {'source': 'cache'}, explanation="Found cached response - skipping AI call!")
-                    self._log_visualizer("PHASE 2", "Cache Check", {"result": "HIT", "saving": "100%"})
-                    return cached
-                self._log_debug('FUNCTION', 'Cache MISS - Will call AI', {'status': 'miss'}, explanation="No cached response found - proceeding to AI analysis")
-                self._log_visualizer("PHASE 2", "Cache Check", {"result": "MISS"})
+                try:
+                    cache_key = f"alert:{protected.get('alert_id', 'unknown')}"
+                    cached = self.cache.get(cache_key)
+                    if cached:
+                        import json
+                        self._log_debug('FUNCTION', 'Cache HIT - Returning cached response', {'source': 'redis'}, explanation="Found cached response - skipping AI call!")
+                        self._log_visualizer("PHASE 2", "Cache Check", {"result": "HIT", "saving": "100%"})
+                        return json.loads(cached)
+                    self._log_debug('FUNCTION', 'Cache MISS - Will call AI', {'status': 'miss'}, explanation="No cached response found - proceeding to AI analysis")
+                    self._log_visualizer("PHASE 2", "Cache Check", {"result": "MISS"})
+                except Exception as e:
+                    logger.warning(f"[CACHE] Cache read error: {e}")
             
             # FEATURE 5: Budget Check
             self._log_debug(
@@ -686,7 +686,13 @@ class AlertAnalyzer:
             
             # Cache, audit, metrics (Features 18-22)
             if self.cache:
-                self.cache.set(protected_dict, result)
+                try:
+                    import json
+                    cache_key = f"alert:{protected_dict.get('alert_id', 'unknown')}"
+                    self.cache.set(cache_key, json.dumps(result), ex=3600)  # 1 hour TTL
+                    logger.info(f"[CACHE] Cached result for {cache_key}")
+                except Exception as e:
+                    logger.warning(f"[CACHE] Cache write error: {e}")
             self.audit.log_analysis(protected_dict, result, result['metadata'])
             self.metrics.record_processing_time(
                 protected_dict.get('alert_id'), duration, 'priority'
@@ -765,10 +771,18 @@ class AlertAnalyzer:
             if not json_str:
                 raise ValueError("No JSON object found in response")
 
-            # 3. Parse JSON
+            # 3. Sanitize control characters that break JSON parsing
+            # Remove control characters (0x00-0x1F) except valid whitespace (\t, \n, \r)
+            json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', json_str)
+            
+            # Also fix common issues: unescaped newlines in strings
+            # Replace literal newlines inside strings with escaped versions
+            json_str = json_str.replace('\r\n', '\\n').replace('\r', '\\n')
+            
+            # 4. Parse JSON
             parsed = json.loads(json_str)
             
-            # 4. Normalize & Validate
+            # 5. Normalize & Validate
             return {
                 'verdict': parsed.get('verdict', 'suspicious').lower(), # Keep lowercase for output guard
                 'confidence': float(parsed.get('confidence', 0.5)),
@@ -853,6 +867,54 @@ FORENSIC LOGS:
 {log_summary if log_summary else "No correlated logs available"}
 {osint_summary if osint_summary else ""}
 ======================================================================
+VERDICT DECISION CRITERIA
+======================================================================
+
+### BENIGN (False Positive) - Use when activity is NORMAL and EXPECTED:
+- Administrative PowerShell/CMD usage during business hours by IT staff
+- Scheduled tasks, Windows Update, system maintenance routines
+- Internal vulnerability scans from known security tools (Nessus, Qualys, etc.)
+- Known automation tools (Ansible, SCCM, Puppet, Chef, Jenkins)
+- Software installations/updates from legitimate sources
+- Backup operations, antivirus scans, disk cleanup
+- Network traffic to known Microsoft, Google, AWS, internal domains
+- User activity matching their normal behavioral baseline
+- Events from signed/trusted executables in standard paths
+WHEN BENIGN: Clearly state "This is normal administrative activity because..." or "This is a false positive - the behavior matches routine maintenance..."
+
+### MALICIOUS - Use ONLY when there is CLEAR evidence of attack:
+- Known malware signatures, hashes, or file names
+- Connection to confirmed C2 servers or malicious IPs/domains
+- Data exfiltration patterns (large outbound transfers to unknown destinations)
+- Credential dumping tools (mimikatz, procdump on lsass, etc.)
+- Lateral movement with stolen credentials
+- Ransomware indicators (mass file encryption, shadow copy deletion)
+- Living-off-the-land binaries used in attack chains (not just admin use)
+- Persistence mechanisms (registry run keys, scheduled tasks) with malicious payloads
+
+### SUSPICIOUS - Use when genuinely uncertain:
+- Activity could be legitimate OR malicious, context is ambiguous
+- Unusual but not definitively malicious behavior
+- First-time behavior that deviates from baseline but has plausible explanation
+- Needs human investigation to determine intent
+
+## CONFIDENCE CALIBRATION:
+- 0.90-1.00: Clear, unambiguous evidence. High certainty in verdict.
+- 0.70-0.89: Strong indicators but some ambiguity. Confident but not certain.
+- 0.50-0.69: Mixed signals, could go either way. Requires human review.
+- Below 0.50: Insufficient data. Should NOT be used - default to suspicious if unsure.
+
+## FALSE POSITIVE RECOGNITION - These are typically BENIGN:
+- Windows/Microsoft Update processes (wuauclt, TrustedInstaller, MsMpEng)
+- Legitimate admin PowerShell: Get-*, Set-*, Install-*, Update-* cmdlets
+- IT ticketing/remote support tools (ServiceNow, TeamViewer, Bomgar) by IT staff
+- Scheduled antivirus scans during maintenance windows
+- Internal penetration testing (verify with security team schedule)
+- Developer tools and IDEs (Visual Studio, VS Code, Docker, npm, pip)
+- Cloud sync clients (OneDrive, Dropbox, Google Drive) in normal operation
+- VPN and network authentication events
+
+======================================================================
 RESPONSE FORMAT REQUIREMENT
 ======================================================================
 
@@ -871,8 +933,8 @@ Required JSON structure:
     {{"step": 4, "observation": "Pattern identified", "analysis": "Why this matters", "conclusion": "Threat level"}},
     {{"step": 5, "observation": "Final key finding", "analysis": "Complete picture", "conclusion": "Final verdict justification"}}
   ],
-  "reasoning": "Comprehensive 300+ character synthesis explaining how all evidence connects to form a coherent attack narrative.",
-  "recommendation": "Specific actionable steps prioritized by urgency."
+  "reasoning": "Comprehensive 300+ character synthesis explaining how all evidence connects. For BENIGN verdicts, explicitly explain why this is normal/expected activity.",
+  "recommendation": "Specific actionable steps. For BENIGN: suggest tuning detection rules or whitelisting. For MALICIOUS: immediate containment steps."
 }}
 
 CRITICAL REQUIREMENTS FOR YOUR ANALYSIS:
@@ -882,6 +944,8 @@ CRITICAL REQUIREMENTS FOR YOUR ANALYSIS:
 4. Chain of thought: 5 steps showing observation -> analysis -> conclusion
 5. Reasoning must be 300+ characters explaining how evidence connects
 6. Reference specific log entry IDs, MITRE tactics, and timestamps
+7. DO NOT default to 'suspicious' - make a definitive call when evidence is clear
+8. For BENIGN: Include evidence supporting why this is normal (e.g., 'IT admin account', 'business hours', 'signed Microsoft binary')
 
 YOUR EVIDENCE ARRAY MUST INCLUDE references to each available log type using exact IDs like [PROCESS-1], [NETWORK-1].
 

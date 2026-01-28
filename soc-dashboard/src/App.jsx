@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 
@@ -7,15 +8,20 @@ import DebugDashboard from './pages/DebugDashboard';
 import RAGDashboard from './pages/RAGDashboard';
 import TransparencyDashboard from './pages/TransparencyDashboard';
 
-
 function App() {
-
   const location = useLocation();
+
+  // Demo user (auth disabled for hosting)
+  const user = { username: 'analyst', role: 'analyst' };
+
+  const handleLogout = () => {
+    // Auth disabled - logout does nothing
+    console.log('Auth disabled for demo');
+  };
 
   return (
     <div className="flex bg-slate-950 min-h-screen text-slate-100 font-sans antialiased overflow-hidden">
-      {/* Always show sidebar, passing dummy user */}
-      <Sidebar user={{ role: 'analyst', username: 'analyst' }} onLogout={() => { }} />
+      <Sidebar user={user} onLogout={handleLogout} />
 
       <div className="flex-1 overflow-auto relative">
         {/* Background Ambient Glow */}
@@ -25,7 +31,7 @@ function App() {
           {/* Default to Analyst Dashboard */}
           <Route path="/" element={<Navigate to="/analyst" replace />} />
 
-          {/* Direct Routes (No Auth Required) */}
+          {/* All Routes (No Auth Required) */}
           <Route path="/analyst" element={<AnalystDashboard />} />
           <Route path="/performance" element={<PerformanceDashboard />} />
           <Route path="/debug" element={<DebugDashboard />} />

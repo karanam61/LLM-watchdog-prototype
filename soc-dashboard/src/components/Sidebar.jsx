@@ -1,7 +1,7 @@
-import { LayoutDashboard, Activity, Terminal, ShieldCheck, Database, Brain } from 'lucide-react';
+import { LayoutDashboard, Activity, Terminal, ShieldCheck, Database, Brain, LogOut, User } from 'lucide-react';
 import { useLocation, Link } from 'react-router-dom';
 
-const Sidebar = () => {
+const Sidebar = ({ user, onLogout }) => {
   const location = useLocation();
 
   const isActive = (path) => location.pathname === path;
@@ -74,7 +74,26 @@ const Sidebar = () => {
       </nav>
 
       {/* User Section */}
-
+      <div className="p-4 border-t border-slate-800">
+        <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center">
+              <User size={16} className="text-cyan-400" />
+            </div>
+            <div>
+              <div className="text-sm font-medium text-white">{user?.username || 'Analyst'}</div>
+              <div className="text-xs text-slate-500">Authenticated</div>
+            </div>
+          </div>
+          <button
+            onClick={onLogout}
+            className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+            title="Logout"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

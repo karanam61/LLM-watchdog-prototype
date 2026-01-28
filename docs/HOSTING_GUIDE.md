@@ -1,270 +1,154 @@
-# Complete Hosting Guide - AI-SOC Watchdog
+# Hosting Guide - AI-SOC Watchdog
 
-How to host this project for FREE on the internet.
-
----
-
-## Architecture Overview
-
-This project has **3 components** that need hosting:
-
-| Component | What It Is | Where to Host (Free) |
-|-----------|------------|---------------------|
-| **Frontend** | React Dashboard | Vercel |
-| **Backend** | Flask API | Render.com |
-| **Database** | PostgreSQL | Supabase (already using) |
+Deploy your SOC dashboard to the cloud for free!
 
 ---
 
-## Step 1: Prepare for Production
-
-### 1.1 Add Gunicorn (Production Server)
-
-Add `gunicorn` to `requirements.txt`:
+## Architecture
 
 ```
-gunicorn>=21.0.0
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Vercel/Netlify │────▶│  Railway/Render │────▶│    Supabase     │
+│   (Frontend)    │     │   (Backend)     │     │   (Database)    │
+│      FREE       │     │     FREE        │     │     FREE        │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
-### 1.2 Create Procfile (for Render)
+---
 
-Create a file called `Procfile` in the project root:
+## Option 1: Railway (Backend) + Vercel (Frontend)
 
+### Step 1: Deploy Backend to Railway
+
+1. Go to [railway.app](https://railway.app) and sign in with GitHub
+2. Click "New Project" → "Deploy from GitHub repo"
+3. Select your `LLM-watchdog-prototype` repository
+4. Railway will auto-detect the Python app
+
+5. Add environment variables in Railway dashboard:
+   ```
+   ANTHROPIC_API_KEY=your_key
+   SUPABASE_URL=your_supabase_url
+   SUPABASE_KEY=your_supabase_key
+   SUPABASE_SERVICE_KEY=your_service_key
+   INGEST_API_KEY=your_ingest_key
+   ```
+
+6. Deploy! Railway will give you a URL like `https://your-app.railway.app`
+
+### Step 2: Deploy Frontend to Vercel
+
+1. Go to [vercel.com](https://vercel.com) and sign in with GitHub
+2. Click "Import Project" → Select your repo
+3. Set the root directory to `soc-dashboard`
+4. Add environment variable:
+   ```
+   VITE_API_URL=https://your-app.railway.app
+   ```
+5. Deploy!
+
+### Step 3: Update CORS
+
+In Railway, add your Vercel URL to allowed origins:
 ```
-web: gunicorn app:app --bind 0.0.0.0:$PORT
+ALLOWED_ORIGINS=https://your-frontend.vercel.app
 ```
 
-### 1.3 Update Frontend API URL
+---
 
-Edit `soc-dashboard/src/config.js`:
+## Option 2: Render (All-in-One)
 
-```javascript
-// Change this line to use environment variable
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-```
+### Backend
 
-### 1.4 Commit Changes
+1. Go to [render.com](https://render.com) and connect GitHub
+2. New → Web Service
+3. Select your repo
+4. Settings:
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `gunicorn -w 2 app:app --bind 0.0.0.0:$PORT --timeout 120`
+5. Add environment variables (same as Railway)
+6. Deploy!
 
+### Frontend
+
+1. New → Static Site
+2. Select your repo
+3. Settings:
+   - Root Directory: `soc-dashboard`
+   - Build Command: `npm install && npm run build`
+   - Publish Directory: `dist`
+4. Add `VITE_API_URL` environment variable
+5. Deploy!
+
+---
+
+## Environment Variables Required
+
+### Backend
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Claude API key |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_KEY` | Supabase anon key |
+| `SUPABASE_SERVICE_KEY` | Supabase service key |
+| `INGEST_API_KEY` | API key for alert ingestion |
+| `SESSION_SECRET` | Random string for sessions |
+
+### Frontend
+| Variable | Description |
+|----------|-------------|
+| `VITE_API_URL` | Backend URL (e.g., https://your-app.railway.app) |
+
+---
+
+## Quick Deploy Commands
+
+### Push to GitHub first:
 ```bash
 git add .
-git commit -m "Add production configuration"
-git push
+git commit -m "Prepare for deployment"
+git push origin main
 ```
+
+### Then deploy via web UI on Railway/Vercel/Render
 
 ---
 
-## Step 2: Deploy Backend on Render.com
+## Post-Deployment Checklist
 
-### 2.1 Create Account
-
-1. Go to https://render.com
-2. Click "Get Started for Free"
-3. Sign up with GitHub
-
-### 2.2 Create Web Service
-
-1. Click **"New"** → **"Web Service"**
-2. Connect your GitHub repository: `karanam61/LLM-watchdog-prototype`
-3. Configure settings:
-
-| Setting | Value |
-|---------|-------|
-| Name | `llm-watchdog-api` |
-| Region | Oregon (US West) or nearest to you |
-| Branch | `main` |
-| Root Directory | *(leave empty)* |
-| Runtime | Python 3 |
-| Build Command | `pip install -r requirements.txt` |
-| Start Command | `gunicorn app:app --bind 0.0.0.0:$PORT` |
-| Instance Type | Free |
-
-### 2.3 Add Environment Variables
-
-Click **"Environment"** → **"Add Environment Variable"**:
-
-| Key | Value |
-|-----|-------|
-| `ANTHROPIC_API_KEY` | `sk-ant-...` (your key) |
-| `SUPABASE_URL` | `https://xxx.supabase.co` |
-| `SUPABASE_KEY` | Your Supabase anon key |
-| `SUPABASE_SERVICE_KEY` | Your Supabase service key |
-| `PYTHON_VERSION` | `3.11.0` |
-
-### 2.4 Deploy
-
-1. Click **"Create Web Service"**
-2. Wait 5-10 minutes for build
-3. Copy your URL: `https://llm-watchdog-api.onrender.com`
-
-### 2.5 Test Backend
-
-```bash
-curl https://llm-watchdog-api.onrender.com/queue-status
-```
-
-Should return: `{"priority_count": 0, "standard_count": 0}`
+- [ ] Backend is running (check `/api/health`)
+- [ ] Frontend loads correctly
+- [ ] Can view alerts in dashboard
+- [ ] AI analysis is working (check queue status)
+- [ ] CORS is configured correctly
 
 ---
 
-## Step 3: Deploy Frontend on Vercel
+## Costs
 
-### 3.1 Create Account
-
-1. Go to https://vercel.com
-2. Click "Sign Up"
-3. Sign up with GitHub
-
-### 3.2 Import Project
-
-1. Click **"Add New..."** → **"Project"**
-2. Import `karanam61/LLM-watchdog-prototype`
-3. Configure:
-
-| Setting | Value |
-|---------|-------|
-| Framework Preset | Vite |
-| Root Directory | `soc-dashboard` |
-| Build Command | `npm run build` |
-| Output Directory | `dist` |
-
-### 3.3 Add Environment Variables
-
-Click **"Environment Variables"**:
-
-| Key | Value |
-|-----|-------|
-| `VITE_API_URL` | `https://llm-watchdog-api.onrender.com` |
-
-### 3.4 Deploy
-
-1. Click **"Deploy"**
-2. Wait 2-3 minutes
-3. Get your URL: `https://llm-watchdog-prototype.vercel.app`
-
----
-
-## Step 4: Verify Everything Works
-
-### 4.1 Open Dashboard
-
-Go to your Vercel URL: `https://your-app.vercel.app`
-
-### 4.2 Check API Connection
-
-1. Open browser console (F12)
-2. Should see successful API calls to your Render backend
-
-### 4.3 Test Alert Ingestion
-
-```bash
-curl -X POST https://llm-watchdog-api.onrender.com/ingest \
-  -H "X-API-Key: secure-ingest-key-123" \
-  -H "Content-Type: application/json" \
-  -d '{"alert_name": "Test Alert", "severity": "low", "description": "Testing production"}'
-```
+| Service | Free Tier |
+|---------|-----------|
+| Railway | $5/month credit (enough for demo) |
+| Vercel | Unlimited for static sites |
+| Render | 750 hours/month free |
+| Supabase | 500MB database, 2GB bandwidth |
+| Anthropic | Pay-per-use (~$0.01/alert) |
 
 ---
 
 ## Troubleshooting
 
-### "Backend keeps sleeping"
+### "CORS error"
+- Add frontend URL to `ALLOWED_ORIGINS` in backend env vars
 
-Render free tier sleeps after 15 minutes of inactivity.
-
-**Solution**: Use a free uptime monitor like:
-- https://uptimerobot.com (free, pings every 5 mins)
-- https://cron-job.org (free, pings on schedule)
-
-Set it to ping `https://llm-watchdog-api.onrender.com/queue-status` every 5 minutes.
-
-### "CORS errors"
-
-Backend needs to allow frontend origin.
-
-**Solution**: Already handled in `app.py` with `CORS(app)`, but if issues persist, add to environment:
-```
-FRONTEND_URL=https://your-app.vercel.app
-```
-
-### "API timeout"
-
-First request after sleep takes 30-60 seconds on Render free tier.
-
-**Solution**: This is normal. Subsequent requests are fast.
+### "502 Bad Gateway"
+- Check backend logs in Railway/Render
+- Increase timeout in Procfile
 
 ### "Database connection failed"
-
-Check Supabase environment variables are correct.
-
-### "AI not working"
-
-Verify `ANTHROPIC_API_KEY` is set correctly in Render.
+- Verify Supabase credentials are correct
+- Check if Supabase project is active
 
 ---
 
-## Custom Domain (Optional)
-
-### Vercel Custom Domain
-
-1. Go to Vercel → Your Project → Settings → Domains
-2. Add your domain (e.g., `soc.yourdomain.com`)
-3. Update DNS: Add CNAME record pointing to `cname.vercel-dns.com`
-
-### Render Custom Domain
-
-1. Go to Render → Your Service → Settings → Custom Domains
-2. Add your domain (e.g., `api.yourdomain.com`)
-3. Update DNS as instructed
-
----
-
-## Cost Summary
-
-| Service | Free Tier Limit | What You Get |
-|---------|-----------------|--------------|
-| Vercel | Unlimited deploys | Frontend hosting |
-| Render | 750 hours/month | Backend hosting |
-| Supabase | 500MB database | Database + Auth |
-| Anthropic | Pay-per-use | AI API (~$0.002-0.02/alert) |
-
-**Total Cost**: $0/month + AI API usage
-
----
-
-## Production Checklist
-
-- [ ] `gunicorn` added to requirements.txt
-- [ ] Environment variables set on Render
-- [ ] Environment variables set on Vercel
-- [ ] Backend URL updated in frontend config
-- [ ] CORS configured correctly
-- [ ] Uptime monitor configured
-- [ ] Custom domain (optional)
-- [ ] Test alert ingestion working
-- [ ] Dashboard loading data
-
----
-
-## Quick Reference URLs
-
-| Service | URL |
-|---------|-----|
-| GitHub Repo | https://github.com/karanam61/LLM-watchdog-prototype |
-| Render Dashboard | https://dashboard.render.com |
-| Vercel Dashboard | https://vercel.com/dashboard |
-| Supabase Dashboard | https://app.supabase.com |
-| Mermaid Live Editor | https://mermaid.live |
-
----
-
-## For Your Resume
-
-After hosting, add to your resume:
-
-```
-AI-SOC Watchdog
-├── Live Demo: https://your-app.vercel.app
-├── GitHub: https://github.com/karanam61/LLM-watchdog-prototype
-├── Backend API: https://llm-watchdog-api.onrender.com
-└── Tech: Python, Flask, React, Claude AI, Supabase, ChromaDB
-```
+*Last updated: January 2026*
