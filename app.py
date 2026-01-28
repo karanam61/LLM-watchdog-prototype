@@ -157,17 +157,8 @@ if os.getenv('PRODUCTION', 'false').lower() == 'true':
         print("[SECURITY WARNING] Random session secret generated. Set SESSION_SECRET env var for persistent sessions.")
 
 # Configure CORS - allow ALL origins for production demo
-# This is the nuclear option that definitely works
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=False)
 print("[CORS] CORS enabled for ALL origins")
-
-# Also add manual CORS headers as backup
-@app.after_request
-def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Ingest-Key'
-    return response
 
 # Store live_logger in app config so blueprints access the same instance
 app.config['live_logger'] = live_logger
@@ -303,6 +294,11 @@ def log_request_info():
 @app.after_request
 def log_response_info(response):
     """Log every outgoing response with sensitive data redacted"""
+    # CORS HEADERS - Add to EVERY response (nuclear option for production)
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Ingest-Key'
+    
     if request.path == '/api/debug-logs': return response
     if request.path == '/alerts' and request.method in ['GET', 'OPTIONS']: return response
     

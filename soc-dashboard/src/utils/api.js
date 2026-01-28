@@ -8,7 +8,7 @@ const api = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
-    withCredentials: true,
+    withCredentials: false,  // Must be false when using CORS wildcard '*'
 });
 
 // Handle 401 responses globally
