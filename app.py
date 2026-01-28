@@ -156,17 +156,18 @@ if os.getenv('PRODUCTION', 'false').lower() == 'true':
     if app.secret_key == secrets.token_hex(32):
         print("[SECURITY WARNING] Random session secret generated. Set SESSION_SECRET env var for persistent sessions.")
 
-# Configure CORS - allow configurable origins for deployment
-ALLOWED_ORIGINS_ENV = os.getenv('ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173')
+# Configure CORS - allow ALL origins for production demo
+# This is the nuclear option that definitely works
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=False)
+print("[CORS] CORS enabled for ALL origins")
 
-# Handle wildcard (*) specially - Flask-CORS needs string '*' not list ['*']
-if ALLOWED_ORIGINS_ENV.strip() == '*':
-    CORS(app, origins='*', supports_credentials=False)  # credentials=False required for wildcard
-    print("[CORS] Allowing ALL origins (wildcard mode)")
-else:
-    ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_ENV.split(',')]
-    CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
-    print(f"[CORS] Allowed origins: {ALLOWED_ORIGINS}")
+# Also add manual CORS headers as backup
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Ingest-Key'
+    return response
 
 # Store live_logger in app config so blueprints access the same instance
 app.config['live_logger'] = live_logger
