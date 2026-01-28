@@ -18,11 +18,11 @@ dist/
 build/
 *.egg
 
-# ChromaDB data (large, regeneratable)
-chroma_db/
-*.chroma
-backend/chromadb_data/
-chromadb_data/
+# ChromaDB data - INCLUDED for deployment (comment out to exclude)
+# chroma_db/
+# *.chroma
+# backend/chromadb_data/
+# chromadb_data/
 
 # Logs
 logs/
