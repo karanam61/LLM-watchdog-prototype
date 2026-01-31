@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShieldAlert, Search, CheckCircle, ExternalLink, RefreshCcw, AlertTriangle, ChevronDown, FileText, Save, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ShieldAlert, Search, CheckCircle, ExternalLink, RefreshCcw, AlertTriangle, ChevronDown, FileText, Save, ChevronLeft, ChevronRight, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../utils/api';
 
@@ -13,6 +13,8 @@ const AnalystDashboard = () => {
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [analystNotes, setAnalystNotes] = useState({}); // Track notes per alert
     const [savingNotes, setSavingNotes] = useState(false);
+    const [feedbackState, setFeedbackState] = useState({}); // { alertId: { verdict: '', notes: '', submitting: false } }
+    const [feedbackStats, setFeedbackStats] = useState(null);
     
     // Pagination state
     const [page, setPage] = useState(1);
@@ -102,6 +104,56 @@ const AnalystDashboard = () => {
             console.error("Failed to save notes:", error);
         }
     };
+
+    // Submit feedback on AI verdict
+    const handleSubmitFeedback = async (alertId, verdict, notes) => {
+        setFeedbackState(prev => ({
+            ...prev,
+            [alertId]: { ...prev[alertId], submitting: true }
+        }));
+        
+        try {
+            const res = await api.post(`/api/alerts/${alertId}/feedback`, {
+                analyst_verdict: verdict,
+                analyst_notes: notes
+            });
+            
+            // Update local alert state with feedback
+            setAlerts(prev => prev.map(a => 
+                a.id === alertId 
+                    ? { ...a, analyst_verdict: verdict, analyst_notes: notes }
+                    : a
+            ));
+            
+            // Fetch updated stats
+            fetchFeedbackStats();
+            
+            alert(`Feedback submitted! AI was ${res.data.ai_was_correct ? 'CORRECT ✓' : 'INCORRECT ✗'}`);
+        } catch (error) {
+            console.error("Failed to submit feedback:", error);
+            alert("Failed to submit feedback: " + (error.response?.data?.error || error.message));
+        } finally {
+            setFeedbackState(prev => ({
+                ...prev,
+                [alertId]: { ...prev[alertId], submitting: false }
+            }));
+        }
+    };
+
+    // Fetch AI accuracy stats
+    const fetchFeedbackStats = async () => {
+        try {
+            const res = await api.get('/api/feedback/stats');
+            setFeedbackStats(res.data);
+        } catch (error) {
+            console.error("Failed to fetch feedback stats:", error);
+        }
+    };
+
+    // Fetch stats on mount
+    useEffect(() => {
+        fetchFeedbackStats();
+    }, []);
 
     const toggleExpand = (id) => {
         if (expandedId === id) {
@@ -277,7 +329,7 @@ const AnalystDashboard = () => {
                                         >
                                             {/* Log Tabs */}
                                             <div className="flex border-b border-slate-800 px-6 pt-4 gap-4">
-                                                {['summary', 'process', 'network', 'file', 'notes'].map(tab => (
+                                                {['summary', 'feedback', 'process', 'network', 'file', 'notes'].map(tab => (
                                                     <button
                                                         key={tab}
                                                         onClick={() => {
@@ -295,6 +347,7 @@ const AnalystDashboard = () => {
                                                             : 'border-transparent text-slate-500 hover:text-slate-300'}`}
                                                     >
                                                         {tab === 'summary' ? 'Analysis Summary' : 
+                                                         tab === 'feedback' ? <><MessageSquare size={14} /> Feedback</> :
                                                          tab === 'notes' ? <><FileText size={14} /> Notes</> : 
                                                          `${tab} Logs`}
                                                     </button>
@@ -367,6 +420,114 @@ const AnalystDashboard = () => {
                                                     </div>
                                                 )}
 
+                                                {/* FEEDBACK VIEW */}
+                                                {activeLogTab === 'feedback' && (
+                                                    <div className="space-y-4">
+                                                        <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
+                                                            <div className="flex items-center gap-2 text-cyan-400 text-sm font-semibold mb-4">
+                                                                <MessageSquare size={16} />
+                                                                ANALYST FEEDBACK ON AI VERDICT
+                                                            </div>
+                                                            
+                                                            {/* Show if already submitted */}
+                                                            {alert.analyst_verdict && (
+                                                                <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                                                                    <span className="text-green-400 text-sm">
+                                                                        ✓ Feedback already submitted: <strong>{alert.analyst_verdict.toUpperCase()}</strong>
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {/* Current AI Verdict Display */}
+                                                            <div className="mb-4 p-3 bg-slate-800/50 rounded-lg">
+                                                                <span className="text-slate-400 text-sm">AI Verdict: </span>
+                                                                <span className={`font-bold ${
+                                                                    alert.ai_verdict === 'MALICIOUS' ? 'text-red-400' :
+                                                                    alert.ai_verdict === 'BENIGN' ? 'text-green-400' : 'text-yellow-400'
+                                                                }`}>
+                                                                    {alert.ai_verdict || 'Pending'} 
+                                                                </span>
+                                                                <span className="text-slate-500 text-sm ml-2">
+                                                                    ({((alert.ai_confidence || 0) * 100).toFixed(0)}% confidence)
+                                                                </span>
+                                                            </div>
+                                                            
+                                                            {/* Verdict Selection */}
+                                                            <div className="mb-4">
+                                                                <label className="text-sm text-slate-400 mb-2 block">Your Verdict:</label>
+                                                                <div className="flex gap-3">
+                                                                    {['benign', 'suspicious', 'malicious'].map(verdict => (
+                                                                        <button
+                                                                            key={verdict}
+                                                                            onClick={() => setFeedbackState(prev => ({
+                                                                                ...prev,
+                                                                                [alert.id]: { ...prev[alert.id], verdict }
+                                                                            }))}
+                                                                            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                                                                                feedbackState[alert.id]?.verdict === verdict
+                                                                                    ? verdict === 'benign' ? 'bg-green-500/20 border-green-500 text-green-400' :
+                                                                                      verdict === 'malicious' ? 'bg-red-500/20 border-red-500 text-red-400' :
+                                                                                      'bg-yellow-500/20 border-yellow-500 text-yellow-400'
+                                                                                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
+                                                                            }`}
+                                                                        >
+                                                                            {verdict === 'benign' && <ThumbsUp size={14} className="inline mr-2" />}
+                                                                            {verdict === 'malicious' && <ThumbsDown size={14} className="inline mr-2" />}
+                                                                            {verdict.toUpperCase()}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            {/* Notes */}
+                                                            <div className="mb-4">
+                                                                <label className="text-sm text-slate-400 mb-2 block">Why? (Optional but helpful)</label>
+                                                                <textarea
+                                                                    value={feedbackState[alert.id]?.notes || ''}
+                                                                    onChange={(e) => setFeedbackState(prev => ({
+                                                                        ...prev,
+                                                                        [alert.id]: { ...prev[alert.id], notes: e.target.value }
+                                                                    }))}
+                                                                    placeholder="e.g., 'This is scheduled IT maintenance' or 'Confirmed credential theft via LSASS dump'"
+                                                                    className="w-full h-24 bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-300 text-sm placeholder-slate-600 focus:outline-none focus:border-cyan-500/50 resize-none"
+                                                                />
+                                                            </div>
+                                                            
+                                                            {/* Submit Button */}
+                                                            <button
+                                                                onClick={() => handleSubmitFeedback(
+                                                                    alert.id,
+                                                                    feedbackState[alert.id]?.verdict,
+                                                                    feedbackState[alert.id]?.notes || ''
+                                                                )}
+                                                                disabled={!feedbackState[alert.id]?.verdict || feedbackState[alert.id]?.submitting}
+                                                                className="w-full py-3 bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 rounded-lg font-medium hover:bg-cyan-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            >
+                                                                {feedbackState[alert.id]?.submitting ? 'Submitting...' : 'Submit Feedback'}
+                                                            </button>
+                                                            
+                                                            <div className="mt-3 text-xs text-slate-500">
+                                                                Your feedback helps improve AI accuracy. Similar future alerts will learn from your corrections.
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {/* AI Accuracy Stats */}
+                                                        {feedbackStats && feedbackStats.total_reviewed > 0 && (
+                                                            <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
+                                                                <div className="text-sm text-slate-400 mb-2">AI Accuracy (based on {feedbackStats.total_reviewed} reviews)</div>
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className="text-2xl font-bold text-cyan-400">
+                                                                        {feedbackStats.accuracy?.toFixed(1) || 0}%
+                                                                    </div>
+                                                                    <div className="text-sm text-slate-500">
+                                                                        {feedbackStats.correct} correct / {feedbackStats.incorrect} incorrect
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
                                                 {/* NOTES VIEW */}
                                                 {activeLogTab === 'notes' && (
                                                     <div className="space-y-4">
@@ -412,7 +573,7 @@ const AnalystDashboard = () => {
                                                 )}
 
                                                 {/* LOG VIEWS */}
-                                                {(activeLogTab !== 'summary' && activeLogTab !== 'notes') && (
+                                                {(activeLogTab !== 'summary' && activeLogTab !== 'notes' && activeLogTab !== 'feedback') && (
                                                     <div className="space-y-4">
                                                         {logs[activeLogTab] === null ? (
                                                             <div className="text-center py-8 text-cyan-500 animate-pulse">
