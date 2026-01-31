@@ -1277,11 +1277,15 @@ heartbeat_thread.start()
 @app.route('/ingest', methods=['POST'])
 def ingest_log():
     """Alert ingestion endpoint - Entry point for all alerts"""
+    import uuid
+    request_id = str(uuid.uuid4())[:8]  # Short unique ID for tracing
+    
     # Log API call with educational context
     live_logger.log(
         'API',
         'POST /ingest - Alert Received',
         {
+            'request_id': request_id,
             'source_ip': request.remote_addr,
             'content_type': request.content_type,
             '_explanation': 'This is the entry point for all alerts. SIEMs (Splunk, Wazuh) send alerts here via HTTP POST.'
@@ -1759,6 +1763,89 @@ def reanalyze_alert(alert_id):
         return jsonify({"error": "An internal error occurred"}), 500
 
 
+@app.route('/api/alerts/<alert_id>/feedback', methods=['POST'])
+def submit_feedback(alert_id):
+    """
+    Submit analyst feedback on AI verdict.
+    
+    This enables the feedback loop where analyst corrections improve future AI decisions.
+    The feedback is stored and used to:
+    1. Track AI accuracy over time
+    2. Inform similar future alerts via RAG context
+    3. Help calibrate AI confidence
+    """
+    from backend.storage.database import store_analyst_feedback, get_alert_by_id
+    
+    live_logger.log(
+        'FUNCTION',
+        'submit_feedback() - Analyst Feedback Loop',
+        {
+            'endpoint': 'POST /api/alerts/<alert_id>/feedback',
+            'alert_id': alert_id,
+            '_explanation': 'Analyst is providing feedback on AI verdict. This feedback improves future AI decisions.'
+        },
+        status='success'
+    )
+    
+    try:
+        data = request.json
+        analyst_verdict = data.get('analyst_verdict')
+        analyst_notes = data.get('analyst_notes', '')
+        
+        if not analyst_verdict:
+            return jsonify({"error": "analyst_verdict is required"}), 400
+        
+        if analyst_verdict.lower() not in ['benign', 'malicious', 'suspicious']:
+            return jsonify({"error": "analyst_verdict must be: benign, malicious, or suspicious"}), 400
+        
+        # Get original AI verdict for comparison
+        alert = get_alert_by_id(alert_id)
+        ai_verdict = alert.get('ai_verdict') if alert else None
+        ai_confidence = alert.get('ai_confidence') if alert else None
+        
+        result = store_analyst_feedback(
+            alert_id=int(alert_id),
+            analyst_verdict=analyst_verdict,
+            analyst_notes=analyst_notes,
+            ai_verdict=ai_verdict,
+            ai_confidence=ai_confidence
+        )
+        
+        if result.get('success'):
+            live_logger.log(
+                'FEEDBACK',
+                'Analyst Feedback Recorded',
+                {
+                    'alert_id': alert_id,
+                    'ai_verdict': ai_verdict,
+                    'analyst_verdict': analyst_verdict,
+                    'ai_was_correct': result.get('ai_was_correct'),
+                    '_explanation': f"Analyst verdict: {analyst_verdict}. AI was {'CORRECT' if result.get('ai_was_correct') else 'INCORRECT'}."
+                },
+                status='success'
+            )
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        print(f"[ERROR] Failed to submit feedback: {e}")
+        live_logger.log('ERROR', 'Failed to submit feedback', {'error': str(e)}, status='error')
+        return jsonify({"error": "An internal error occurred"}), 500
+
+
+@app.route('/api/feedback/stats', methods=['GET'])
+def get_ai_accuracy_stats():
+    """Get AI accuracy statistics based on analyst feedback."""
+    from backend.storage.database import get_feedback_stats
+    
+    try:
+        stats = get_feedback_stats()
+        return jsonify(stats), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/logs', methods=['GET'])
 def get_logs():
     """Fetch logs for investigation dashboard"""
@@ -1901,6 +1988,19 @@ def health_check():
         'standard_queue': len(qm.standard_queue) if qm else 0
     }
     
+    # Check RAG/ChromaDB status
+    rag_healthy = True
+    try:
+        from backend.ai.rag_system import RAGSystem
+        rag = RAGSystem()
+        rag_status = rag.check_health()
+        rag_healthy = rag_status.get('status') == 'healthy'
+    except Exception as e:
+        rag_healthy = False
+    
+    # Check AI API key presence (not validity - that costs money)
+    ai_ready = bool(os.getenv('ANTHROPIC_API_KEY'))
+    
     # Overall health
     is_healthy = thread_alive and db_healthy
     
@@ -1921,6 +2021,8 @@ def health_check():
         'components': {
             'queue_processor': 'running' if thread_alive else 'stopped',
             'database': 'connected' if db_healthy else 'disconnected',
+            'rag_system': 'ready' if rag_healthy else 'unavailable',
+            'ai_api': 'configured' if ai_ready else 'missing_key',
             'queues': queue_status
         },
         'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ')

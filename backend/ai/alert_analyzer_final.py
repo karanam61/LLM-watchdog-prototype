@@ -652,19 +652,70 @@ class AlertAnalyzer:
             
             # Build final response
             duration = (datetime.now() - start_time).total_seconds()
+            
+            # Confidence Calibration - adjust based on evidence quality
+            raw_confidence = analysis.get('confidence', 0.5)
+            calibrated_confidence = raw_confidence
+            confidence_factors = {}
+            
+            # Factor 1: Log evidence quality (0-100%)
+            log_score = min(100, (total_logs * 10))  # Each log adds 10%, max 100%
+            confidence_factors['log_evidence'] = log_score
+            
+            # Factor 2: OSINT quality (0-100%)
+            osint_score = 50  # Default neutral
+            if osint_data and osint_data.get('indicators'):
+                osint_score = min(100, 50 + len(osint_data.get('indicators', [])) * 10)
+            confidence_factors['osint_match'] = osint_score
+            
+            # Factor 3: Evidence count from AI (0-100%)
+            evidence_count = len(analysis.get('evidence', []))
+            evidence_score = min(100, evidence_count * 12.5)  # 8 evidence = 100%
+            confidence_factors['evidence_quality'] = evidence_score
+            
+            # Factor 4: Chain of thought completeness (0-100%)
+            cot_steps = len(analysis.get('chain_of_thought', []))
+            cot_score = min(100, cot_steps * 20)  # 5 steps = 100%
+            confidence_factors['reasoning_depth'] = cot_score
+            
+            # Calculate weighted average for calibration
+            avg_factor = (log_score + osint_score + evidence_score + cot_score) / 4 / 100
+            # Blend raw confidence with evidence-based calibration (70% AI, 30% evidence)
+            calibrated_confidence = (raw_confidence * 0.7) + (avg_factor * 0.3)
+            calibrated_confidence = max(0.1, min(0.99, calibrated_confidence))  # Clamp to 0.1-0.99
+            
             result = {
                 'success': True,
                 'verdict': analysis.get('verdict', 'suspicious'),
-                'confidence': analysis.get('confidence', 0.5),
+                'confidence': round(calibrated_confidence, 2),
+                'confidence_raw': raw_confidence,
+                'confidence_factors': confidence_factors,
                 'evidence': analysis.get('evidence', []),
-                'chain_of_thought': analysis.get('chain_of_thought', []),  # NEW: Step-by-step reasoning
+                'investigation_answers': analysis.get('investigation_answers', {}),
+                'chain_of_thought': analysis.get('chain_of_thought', []),
                 'reasoning': analysis.get('reasoning', ''),
                 'recommendation': analysis.get('recommendation', ''),
+                'osint_data': {
+                    'summary': osint_data.get('summary', 'No OSINT data') if osint_data else 'No OSINT data',
+                    'threat_score': osint_data.get('threat_score', 0) if osint_data else 0,
+                    'indicators': osint_data.get('indicators', []) if osint_data else [],
+                    'source_ip_intel': osint_data.get('source_ip_intel') if osint_data else None,
+                    'dest_ip_intel': osint_data.get('dest_ip_intel') if osint_data else None
+                },
+                'processing_pipeline': {
+                    'phase_1_security_gates': {'status': 'completed', 'checks': ['input_guard', 'schema_validation', 'pii_filter']},
+                    'phase_2_optimization': {'status': 'completed', 'cache_hit': False, 'budget_approved': True},
+                    'phase_3_context': {'status': 'completed', 'logs_found': total_logs, 'rag_collections': 7, 'osint_enriched': bool(osint_data)},
+                    'phase_4_ai_analysis': {'status': 'completed', 'model': self.api_client.model, 'tokens': api_response.get('tokens', {})},
+                    'phase_5_output_validation': {'status': 'completed', 'issues': []},
+                    'phase_6_observability': {'status': 'completed'}
+                },
                 'metadata': {
                     'alert_id': protected_dict.get('alert_id'),
                     'processing_time': duration,
                     'cost': api_response.get('cost', 0),
-                    'timestamp': datetime.now().isoformat()
+                    'timestamp': datetime.now().isoformat(),
+                    'model_used': self.api_client.model
                 }
             }
             
@@ -784,10 +835,11 @@ class AlertAnalyzer:
             
             # 5. Normalize & Validate
             return {
-                'verdict': parsed.get('verdict', 'suspicious').lower(), # Keep lowercase for output guard
+                'verdict': parsed.get('verdict', 'suspicious').lower(),
                 'confidence': float(parsed.get('confidence', 0.5)),
                 'evidence': parsed.get('evidence', []),
-                'chain_of_thought': parsed.get('chain_of_thought', []),  # New field for reasoning steps
+                'investigation_answers': parsed.get('investigation_answers', {}),
+                'chain_of_thought': parsed.get('chain_of_thought', []),
                 'reasoning': parsed.get('reasoning', text[:200] + "..."),
                 'recommendation': parsed.get('recommendation', 'Manual review required')
             }
@@ -866,6 +918,67 @@ Description: {alert_dict.get('description')}
 FORENSIC LOGS:
 {log_summary if log_summary else "No correlated logs available"}
 {osint_summary if osint_summary else ""}
+
+======================================================================
+FEW-SHOT EXAMPLES - Learn from these ideal analyses:
+======================================================================
+
+EXAMPLE 1 - BENIGN (False Positive):
+Alert: "PowerShell Encoded Command Detected"
+MITRE: T1059.001
+Logs: [PROCESS-1] powershell.exe -EncodedCommand executed by USER-itadmin
+{{
+  "verdict": "benign",
+  "confidence": 0.91,
+  "evidence": [
+    "[PROCESS-1] PowerShell executed by IT admin account during business hours",
+    "Encoded command decodes to standard Get-WmiObject query",
+    "Source workstation is IT department machine (HOST-it-ws01)",
+    "No network connections to external IPs",
+    "Process signed by Microsoft Corporation",
+    "Similar pattern seen 47 times from this user - all legitimate",
+    "OSINT: No indicators of compromise",
+    "MITRE T1059.001 commonly used for legitimate administration"
+  ],
+  "chain_of_thought": [
+    {{"step": 1, "observation": "[PROCESS-1] shows powershell.exe with encoded command", "analysis": "Encoded commands can be malicious but also used for legitimate automation", "conclusion": "Need to check user context and command content"}},
+    {{"step": 2, "observation": "Executed by USER-itadmin during 10:30 AM business hours", "analysis": "IT administrators routinely use PowerShell for system management", "conclusion": "User context supports legitimate use"}},
+    {{"step": 3, "observation": "No [NETWORK] logs showing external connections", "analysis": "Malicious PowerShell typically beacons to C2 servers", "conclusion": "Absence of network IOCs reduces threat likelihood"}},
+    {{"step": 4, "observation": "Historical pattern: 47 similar events from this user", "analysis": "Consistent behavior matching established baseline", "conclusion": "This is normal operational activity"}},
+    {{"step": 5, "observation": "OSINT clean, process signed, standard path", "analysis": "Multiple indicators support benign classification", "conclusion": "High confidence this is routine IT maintenance"}}
+  ],
+  "reasoning": "This is routine IT administration activity. The PowerShell execution was initiated by a known IT administrator (USER-itadmin) during business hours from an IT department workstation. The encoded command pattern matches 47 previous legitimate instances from this user. No network indicators of compromise were detected, the process is properly signed by Microsoft, and OSINT checks returned clean. This is a false positive triggered by the encoded command detection rule, which fires on legitimate admin scripts.",
+  "recommendation": "Consider whitelisting this specific encoded command pattern for USER-itadmin or the IT admin group. Add HOST-it-ws01 to the approved IT management systems list to reduce alert noise."
+}}
+
+EXAMPLE 2 - MALICIOUS (Confirmed Attack):
+Alert: "Mimikatz Credential Dumping Detected"
+MITRE: T1003.001
+Logs: [PROCESS-1] mimikatz.exe spawned, [NETWORK-1] connection to 45.33.32.156:443
+{{
+  "verdict": "malicious",
+  "confidence": 0.97,
+  "evidence": [
+    "[PROCESS-1] mimikatz.exe detected - known credential theft tool",
+    "[PROCESS-2] lsass.exe memory accessed by mimikatz process",
+    "[NETWORK-1] Immediate outbound connection to 45.33.32.156:443 post-execution",
+    "OSINT: 45.33.32.156 flagged as C2 server (AbuseIPDB: 89/100)",
+    "Process unsigned, executed from TEMP directory",
+    "USER-jsmith has no history of security tool usage",
+    "Execution at 2:47 AM outside business hours",
+    "MITRE T1003.001 - LSASS Memory credential access technique"
+  ],
+  "chain_of_thought": [
+    {{"step": 1, "observation": "[PROCESS-1] shows mimikatz.exe execution", "analysis": "Mimikatz is a well-known credential dumping tool with no legitimate enterprise use", "conclusion": "Immediate red flag - this tool should never run in production"}},
+    {{"step": 2, "observation": "[PROCESS-2] shows lsass.exe memory being accessed", "analysis": "LSASS contains cached credentials - accessing it indicates credential theft", "conclusion": "Active credential harvesting confirmed"}},
+    {{"step": 3, "observation": "[NETWORK-1] shows connection to 45.33.32.156 immediately after", "analysis": "Post-exploitation beaconing to external server suggests data exfiltration", "conclusion": "C2 communication established"}},
+    {{"step": 4, "observation": "OSINT flags destination IP as known C2 infrastructure", "analysis": "Corroborates malicious intent - this is known attacker infrastructure", "conclusion": "Threat intelligence confirms compromise"}},
+    {{"step": 5, "observation": "2:47 AM execution, unsigned binary, TEMP directory", "analysis": "Classic attacker tradecraft - off-hours, no signing, temp location", "conclusion": "All indicators point to active attack, not false positive"}}
+  ],
+  "reasoning": "This is a confirmed credential theft attack. Mimikatz, a known credential dumping tool, was executed from a temporary directory at 2:47 AM by USER-jsmith who has no legitimate reason to use security tools. The process accessed LSASS memory (credential storage) and immediately established a connection to 45.33.32.156, which OSINT identifies as a known C2 server with an abuse score of 89/100. The unsigned binary, off-hours execution, and C2 beaconing form a clear attack chain matching MITRE T1003.001.",
+  "recommendation": "IMMEDIATE RESPONSE REQUIRED: 1) Isolate HOST-jsmith-pc from network, 2) Disable USER-jsmith account, 3) Force password reset for all accounts that logged into this host, 4) Block 45.33.32.156 at firewall, 5) Initiate incident response procedure, 6) Preserve forensic evidence."
+}}
+
 ======================================================================
 VERDICT DECISION CRITERIA
 ======================================================================
