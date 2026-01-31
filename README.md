@@ -99,9 +99,11 @@ flowchart TB
 | Feature | Description |
 |---------|-------------|
 | **26 Security Features** | Input/output validation, PII filtering, prompt injection detection |
+| **Structured SOC Methodology** | 5-step investigation framework + 7 systematic questions per alert |
 | **RAG Knowledge Retrieval** | 7 ChromaDB collections (MITRE, historical alerts, business rules) |
+| **Analyst Feedback Loop** | Corrections improve future AI decisions via RAG context |
 | **OSINT Integration** | IP, hash, domain reputation lookups |
-| **Explainable AI** | Chain-of-thought reasoning visible in dashboard |
+| **Explainable AI** | Chain-of-thought reasoning + investigation answers in dashboard |
 | **Cost Optimization** | Haiku for low-sev (90% cheaper), Sonnet for critical |
 | **Auto-Triage** | Benign low-risk alerts auto-closed |
 
@@ -280,6 +282,9 @@ python scripts/test_volume_and_benign.py --benign
 | `/ingest` | POST | Receive new alerts from SIEM |
 | `/alerts` | GET | List all alerts |
 | `/api/alerts/<id>` | PATCH | Update alert status/notes |
+| `/api/alerts/<id>/feedback` | POST | Submit analyst feedback on AI verdict |
+| `/api/alerts/<id>/reanalyze` | POST | Re-queue alert for AI analysis |
+| `/api/feedback/stats` | GET | AI accuracy statistics from feedback |
 | `/queue-status` | GET | Check processing queue |
 | `/api/rag/stats` | GET | RAG system statistics |
 | `/api/transparency/proof/<id>` | GET | AI analysis proof |
@@ -301,6 +306,8 @@ python scripts/test_volume_and_benign.py --benign
 
 ## 📚 Documentation
 
+- [AI Enhancements Guide](docs/AI_ENHANCEMENTS.md) - Structured prompting & feedback loop
+- [Complete Alert Flow](docs/COMPLETE_ALERT_FLOW.md) - Every operation traced
 - [Manual Testing Guide](docs/MANUAL_TESTING_GUIDE.md)
 - [Non-Technical Explanation](docs/PROJECT_EXPLANATION_NON_TECHNICAL.md)
 - [Technical Differentiators & Limitations](docs/TECHNICAL_DIFFERENTIATORS_AND_LIMITATIONS.md)

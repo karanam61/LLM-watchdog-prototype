@@ -315,7 +315,7 @@ def query_windows_event_logs(alert_id):
     return []
 
 def update_alert_with_ai_analysis(alert_id, ai_result):
-    """Update alert with AI verdict and evidence"""
+    """Update alert with AI verdict and evidence (including enhanced fields)"""
     try:
         # Core fields that definitely exist
         data = {
@@ -327,24 +327,39 @@ def update_alert_with_ai_analysis(alert_id, ai_result):
             'status': 'analyzed'
         }
         
-        # Try to include chain_of_thought - if column doesn't exist, we'll handle it
-        # First attempt with chain_of_thought
+        # Enhanced fields (stored as JSONB if columns exist)
+        enhanced_data = {
+            'ai_chain_of_thought': ai_result.get('chain_of_thought', []),
+            'ai_confidence_factors': ai_result.get('confidence_factors', {}),
+            'ai_osint_data': ai_result.get('osint_data', {}),
+            'ai_processing_pipeline': ai_result.get('processing_pipeline', {}),
+            'ai_model_used': ai_result.get('metadata', {}).get('model_used', 'unknown'),
+            'ai_processing_time': ai_result.get('metadata', {}).get('processing_time', 0),
+            'ai_cost': ai_result.get('metadata', {}).get('cost', 0)
+        }
+        
+        # Try to include all enhanced fields first
         try:
-            full_data = {**data, 'ai_chain_of_thought': ai_result.get('chain_of_thought', [])}
+            full_data = {**data, **enhanced_data}
             response = supabase.table('alerts').update(full_data).eq('id', alert_id).execute()
-            print(f"      [INNER TRACE] DB Update: Alert {alert_id} updated with AI Verdict: {ai_result.get('verdict')}")
+            print(f"      [INNER TRACE] DB Update: Alert {alert_id} updated with AI Verdict: {ai_result.get('verdict')} (full data)")
             logger.info(f"[OK] Alert {alert_id} updated with AI verdict: {ai_result.get('verdict')}")
             return response
         except Exception as col_err:
-            # If chain_of_thought column doesn't exist, update without it
-            if 'ai_chain_of_thought' in str(col_err):
-                logger.warning(f"[WARNING] ai_chain_of_thought column not found, updating without it")
-                response = supabase.table('alerts').update(data).eq('id', alert_id).execute()
-                print(f"      [INNER TRACE] DB Update: Alert {alert_id} updated with AI Verdict: {ai_result.get('verdict')}")
+            # If enhanced columns don't exist, try with just chain_of_thought
+            logger.warning(f"[WARNING] Enhanced columns not found, trying minimal update: {col_err}")
+            try:
+                minimal_data = {**data, 'ai_chain_of_thought': ai_result.get('chain_of_thought', [])}
+                response = supabase.table('alerts').update(minimal_data).eq('id', alert_id).execute()
+                print(f"      [INNER TRACE] DB Update: Alert {alert_id} updated with AI Verdict: {ai_result.get('verdict')} (minimal)")
                 logger.info(f"[OK] Alert {alert_id} updated with AI verdict: {ai_result.get('verdict')}")
                 return response
-            else:
-                raise col_err
+            except Exception:
+                # Last resort: core fields only
+                response = supabase.table('alerts').update(data).eq('id', alert_id).execute()
+                print(f"      [INNER TRACE] DB Update: Alert {alert_id} updated with AI Verdict: {ai_result.get('verdict')} (core only)")
+                logger.info(f"[OK] Alert {alert_id} updated with AI verdict: {ai_result.get('verdict')}")
+                return response
                 
     except Exception as e:
         logger.error(f"[X] Failed to update alert with AI analysis: {e}")
@@ -445,6 +460,154 @@ def trigger_s3_sync():
     s3 = get_s3_failover()
     results = s3.sync_all_tables(supabase)
     return results
+
+
+# =============================================================================
+# ANALYST FEEDBACK FUNCTIONS
+# =============================================================================
+
+def store_analyst_feedback(alert_id: int, analyst_verdict: str, analyst_notes: str = None, 
+                           ai_verdict: str = None, ai_confidence: float = None):
+    """
+    Store analyst feedback for an alert and update the alert record.
+    
+    This enables the feedback loop where analyst corrections improve future AI decisions.
+    
+    Args:
+        alert_id: The alert ID being reviewed
+        analyst_verdict: Analyst's verdict ('benign', 'malicious', 'suspicious')
+        analyst_notes: Analyst's reasoning/notes
+        ai_verdict: Original AI verdict for comparison
+        ai_confidence: Original AI confidence
+        
+    Returns:
+        dict with feedback_id and ai_was_correct flag
+    """
+    from datetime import datetime
+    
+    ai_was_correct = (analyst_verdict.lower() == ai_verdict.lower()) if ai_verdict else None
+    
+    try:
+        # Update the alert record with analyst feedback
+        update_data = {
+            'analyst_verdict': analyst_verdict,
+            'analyst_notes': analyst_notes,
+            'analyst_reviewed_at': datetime.utcnow().isoformat(),
+            'ai_was_correct': ai_was_correct
+        }
+        
+        response = supabase.table('alerts').update(update_data).eq('id', alert_id).execute()
+        
+        if response.data:
+            print(f"      [FEEDBACK] Stored analyst feedback for alert {alert_id} | AI Correct: {ai_was_correct}")
+            logger.info(f"[OK] Stored feedback for alert {alert_id}")
+            
+            return {
+                'success': True,
+                'alert_id': alert_id,
+                'ai_was_correct': ai_was_correct,
+                'analyst_verdict': analyst_verdict
+            }
+        else:
+            return {'success': False, 'error': 'No data returned'}
+            
+    except Exception as e:
+        logger.error(f"[X] Error storing feedback: {e}")
+        return {'success': False, 'error': str(e)}
+
+
+def get_feedback_stats():
+    """
+    Get statistics on AI accuracy based on analyst feedback.
+    
+    Returns:
+        dict with accuracy metrics
+    """
+    try:
+        # Get all alerts that have analyst feedback
+        response = supabase.table('alerts').select(
+            'ai_verdict', 'analyst_verdict', 'ai_was_correct', 'ai_confidence'
+        ).not_.is_('analyst_verdict', 'null').execute()
+        
+        if not response.data:
+            return {'total_reviewed': 0, 'accuracy': None}
+        
+        total = len(response.data)
+        correct = sum(1 for r in response.data if r.get('ai_was_correct') == True)
+        incorrect = sum(1 for r in response.data if r.get('ai_was_correct') == False)
+        
+        # Break down by AI verdict type
+        by_verdict = {}
+        for record in response.data:
+            ai_v = record.get('ai_verdict', 'unknown')
+            if ai_v not in by_verdict:
+                by_verdict[ai_v] = {'total': 0, 'correct': 0}
+            by_verdict[ai_v]['total'] += 1
+            if record.get('ai_was_correct'):
+                by_verdict[ai_v]['correct'] += 1
+        
+        return {
+            'total_reviewed': total,
+            'correct': correct,
+            'incorrect': incorrect,
+            'accuracy': round(correct / total * 100, 1) if total > 0 else None,
+            'by_verdict': by_verdict
+        }
+        
+    except Exception as e:
+        logger.error(f"[X] Error getting feedback stats: {e}")
+        return {'error': str(e)}
+
+
+def get_similar_past_verdicts(alert_name: str, mitre_technique: str = None, limit: int = 5):
+    """
+    Get past analyst verdicts for similar alerts to inform current analysis.
+    
+    This is used by the RAG system to include analyst-corrected outcomes
+    in the context for new alerts.
+    
+    Args:
+        alert_name: Current alert name to match
+        mitre_technique: MITRE technique for matching
+        limit: Max similar alerts to return
+        
+    Returns:
+        list of past verdicts with analyst corrections
+    """
+    try:
+        # Query alerts with analyst feedback that match the pattern
+        query = supabase.table('alerts').select(
+            'alert_name', 'ai_verdict', 'analyst_verdict', 'analyst_notes', 
+            'ai_was_correct', 'mitre_technique', 'severity'
+        ).not_.is_('analyst_verdict', 'null')
+        
+        # Filter by similar alert name (partial match)
+        # Note: Supabase uses ilike for case-insensitive partial match
+        if alert_name:
+            # Extract key words from alert name for matching
+            keywords = alert_name.lower().split()[:3]  # First 3 words
+            for keyword in keywords:
+                if len(keyword) > 3:  # Skip short words
+                    query = query.ilike('alert_name', f'%{keyword}%')
+                    break  # Just use first significant keyword
+        
+        response = query.limit(limit).execute()
+        
+        if response.data:
+            return [{
+                'alert_name': r.get('alert_name'),
+                'ai_verdict': r.get('ai_verdict'),
+                'analyst_verdict': r.get('analyst_verdict'),
+                'analyst_notes': r.get('analyst_notes'),
+                'ai_was_correct': r.get('ai_was_correct'),
+                'mitre_technique': r.get('mitre_technique')
+            } for r in response.data]
+        
+        return []
+        
+    except Exception as e:
+        logger.error(f"[X] Error querying similar verdicts: {e}")
+        return []
 
 
 if __name__ == '__main__':

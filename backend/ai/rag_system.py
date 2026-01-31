@@ -592,8 +592,30 @@ class RAGSystem:
                 context_parts.append("\nHost Information:")
                 context_parts.append(asset['host_context'][:400])
         
-        # 8. Current Alert Details
-        context_parts.append("\n## 8. CURRENT ALERT DETAILS:")
+        # 8. ANALYST-CORRECTED PAST VERDICTS (Feedback Loop)
+        try:
+            from backend.storage.database import get_similar_past_verdicts
+            past_verdicts = get_similar_past_verdicts(
+                alert_name=alert.get('alert_name', ''),
+                mitre_technique=alert.get('mitre_technique', ''),
+                limit=3
+            )
+            if past_verdicts:
+                context_parts.append("\n## 8. ANALYST-CORRECTED PAST VERDICTS:")
+                context_parts.append("(Learn from previous analyst decisions on similar alerts)\n")
+                for idx, pv in enumerate(past_verdicts, 1):
+                    context_parts.append(f"### Past Alert {idx}: {pv.get('alert_name', 'Unknown')}")
+                    context_parts.append(f"   - AI Verdict: {pv.get('ai_verdict', 'N/A')}")
+                    context_parts.append(f"   - Analyst Verdict: {pv.get('analyst_verdict', 'N/A')}")
+                    context_parts.append(f"   - AI was correct: {pv.get('ai_was_correct', 'N/A')}")
+                    if pv.get('analyst_notes'):
+                        context_parts.append(f"   - Analyst Notes: {pv.get('analyst_notes')[:200]}")
+                    context_parts.append("")
+        except Exception as e:
+            logger.warning(f"[RAG] Could not fetch past verdicts: {e}")
+        
+        # 9. Current Alert Details
+        context_parts.append("\n## 9. CURRENT ALERT DETAILS:")
         context_parts.append(f"Alert Name: {alert.get('alert_name', 'N/A')}")
         context_parts.append(f"MITRE Technique: {alert.get('mitre_technique', 'N/A')}")
         context_parts.append(f"Severity: {alert.get('severity', 'N/A')}")
@@ -604,14 +626,64 @@ class RAGSystem:
         context_parts.append(f"Timestamp: {alert.get('timestamp', 'N/A')}")
         context_parts.append(f"Description: {alert.get('description', 'N/A')}")
         
-        # 9. Correlated Logs
+        # 10. Correlated Logs
         if logs:
-            context_parts.append("\n## 9. CORRELATED LOGS:")
+            context_parts.append("\n## 10. CORRELATED LOGS:")
             formatted_logs = self._format_logs(logs)
             context_parts.append(formatted_logs)
         
-        # Footer with JSON format instruction
+        # ======================================================================
+        # SYSTEMATIC INVESTIGATION QUESTIONS (The "Analyst Checklist")
+        # ======================================================================
         context_parts.append("\n" + "=" * 70)
+        context_parts.append("\n## SYSTEMATIC INVESTIGATION QUESTIONS")
+        context_parts.append("Answer EACH question using the evidence above:\n")
+        
+        # Q1: User/Account Analysis
+        context_parts.append("**Q1. USER ANALYSIS:**")
+        context_parts.append(f"   - User '{alert.get('username', 'Unknown')}': Is this a service account, admin, or standard user?")
+        context_parts.append("   - Does this user typically perform this type of activity?")
+        context_parts.append("   - Is there evidence of compromised credentials (unusual login location/time)?")
+        
+        # Q2: Process/Command Analysis  
+        context_parts.append("\n**Q2. PROCESS CHAIN ANALYSIS:**")
+        context_parts.append("   - What is the parent process? Is this parent-child relationship normal?")
+        context_parts.append("   - Are command-line arguments suspicious (encoded commands, download cradles)?")
+        context_parts.append("   - Is the executable signed? Located in a standard path?")
+        
+        # Q3: Network Analysis
+        context_parts.append("\n**Q3. NETWORK ANALYSIS:**")
+        context_parts.append(f"   - Source IP '{alert.get('source_ip', 'Unknown')}': Internal or external? Known bad?")
+        context_parts.append(f"   - Destination IP '{alert.get('dest_ip', 'Unknown')}': Legitimate service or suspicious?")
+        context_parts.append("   - Are ports/protocols expected for this type of communication?")
+        
+        # Q4: Temporal Analysis
+        context_parts.append("\n**Q4. TIMING ANALYSIS:**")
+        context_parts.append(f"   - Timestamp '{alert.get('timestamp', 'Unknown')}': Business hours or off-hours?")
+        context_parts.append("   - Is this a scheduled maintenance window?")
+        context_parts.append("   - Does the timing correlate with other suspicious events?")
+        
+        # Q5: Historical Context
+        context_parts.append("\n**Q5. HISTORICAL CONTEXT:**")
+        context_parts.append("   - Have we seen this exact alert before? What was the previous verdict?")
+        context_parts.append("   - Is this a known false positive pattern?")
+        context_parts.append("   - Are there related alerts in close time proximity?")
+        
+        # Q6: Business Justification
+        context_parts.append("\n**Q6. BUSINESS JUSTIFICATION:**")
+        context_parts.append(f"   - Host '{alert.get('hostname', 'Unknown')}': What is its role? Is it a critical asset?")
+        context_parts.append("   - Is there a change ticket or maintenance task that explains this activity?")
+        context_parts.append("   - Does this align with the user's job function?")
+        
+        # Q7: Attack Indicators
+        context_parts.append("\n**Q7. ATTACK INDICATOR CHECK:**")
+        context_parts.append(f"   - MITRE Technique '{alert.get('mitre_technique', 'Unknown')}': What attack stage does this represent?")
+        context_parts.append("   - Are there indicators of persistence, lateral movement, or data exfiltration?")
+        context_parts.append("   - Do multiple logs correlate to form an attack chain?")
+        
+        context_parts.append("\n" + "=" * 70)
+        
+        # Footer with JSON format instruction
         context_parts.append("\n## VERDICT DECISION CRITERIA:")
         context_parts.append("""
 ### BENIGN (False Positive) - Use when activity is NORMAL and EXPECTED:
@@ -666,15 +738,24 @@ WHEN BENIGN: Clearly state "This is normal administrative activity because..." o
   "verdict": "malicious" or "benign" or "suspicious",
   "confidence": 0.0 to 1.0,
   "evidence": ["finding 1", "finding 2", "finding 3", "finding 4", "finding 5", "finding 6", "finding 7", "finding 8"],
+  "investigation_answers": {
+    "user_analysis": "Answer to Q1 - who is this user and is this normal for them?",
+    "process_analysis": "Answer to Q2 - is the process chain legitimate?",
+    "network_analysis": "Answer to Q3 - are the network connections expected?",
+    "timing_analysis": "Answer to Q4 - is the timing suspicious?",
+    "historical_context": "Answer to Q5 - have we seen this before?",
+    "business_justification": "Answer to Q6 - is there a legitimate business reason?",
+    "attack_indicators": "Answer to Q7 - what attack stage or benign pattern?"
+  },
   "chain_of_thought": [
-    {"step": 1, "observation": "What you observed from logs/alert", "analysis": "What this means", "conclusion": "How this contributes to verdict"},
-    {"step": 2, "observation": "Next finding", "analysis": "Technical interpretation", "conclusion": "Impact on verdict"},
-    {"step": 3, "observation": "Another finding", "analysis": "Context from MITRE/history", "conclusion": "Significance"},
-    {"step": 4, "observation": "Pattern identified", "analysis": "Why this matters", "conclusion": "Threat level"},
-    {"step": 5, "observation": "Final key finding", "analysis": "Complete picture", "conclusion": "Final verdict justification"}
+    {"step": 1, "question": "Q1-User", "finding": "What the logs show", "interpretation": "What this means for verdict"},
+    {"step": 2, "question": "Q2-Process", "finding": "Process chain details", "interpretation": "Legitimate or suspicious"},
+    {"step": 3, "question": "Q3-Network", "finding": "Connection analysis", "interpretation": "Expected or anomalous"},
+    {"step": 4, "question": "Q4-Q5 Time/History", "finding": "Temporal and historical context", "interpretation": "Pattern recognition"},
+    {"step": 5, "question": "Q6-Q7 Business/Attack", "finding": "Business justification check", "interpretation": "Final determination"}
   ],
-  "reasoning": "Comprehensive 300+ character synthesis of the chain of thought. Explain how all evidence points connect to form a coherent attack narrative. Reference specific log entries, MITRE tactics, historical patterns, and business impact. For BENIGN verdicts, explicitly explain why this is normal/expected activity.",
-  "recommendation": "Specific actionable steps prioritized by urgency, based on the verdict and business context. For BENIGN: suggest tuning detection rules or whitelisting. For MALICIOUS: immediate containment steps."
+  "reasoning": "300+ char synthesis connecting all 7 investigation answers. For BENIGN: explain the legitimate business activity. For MALICIOUS: describe the attack chain. Reference specific log IDs.",
+  "recommendation": "Specific actionable steps. For BENIGN: suggest tuning rules. For MALICIOUS: containment steps. For SUSPICIOUS: what to investigate further."
 }""")
         context_parts.append("\nCRITICAL REQUIREMENTS FOR YOUR ANALYSIS:")
         context_parts.append("1. LOG REFERENCES ARE MANDATORY: You MUST reference specific log entries by their ID")
@@ -693,6 +774,28 @@ WHEN BENIGN: Clearly state "This is normal administrative activity because..." o
         context_parts.append("- Explain what each log entry reveals about the incident")
         context_parts.append("- For BENIGN: Include evidence supporting why this is normal (e.g., 'IT admin account', 'business hours', 'signed Microsoft binary')")
         context_parts.append("\nDO NOT use markdown formatting. DO NOT wrap in code blocks. Return ONLY the raw JSON object.")
+        
+        # ======================================================================
+        # FEW-SHOT EXAMPLES (Teach by example)
+        # ======================================================================
+        context_parts.append("\n" + "=" * 70)
+        context_parts.append("\n## FEW-SHOT EXAMPLES")
+        context_parts.append("\n### Example 1: BENIGN (IT Admin Activity)")
+        context_parts.append("""Alert: "PowerShell Execution Detected"
+User: admin_jsmith (IT Department)
+Time: 10:30 AM (business hours)
+Process: PowerShell running Get-ADUser cmdlet
+Verdict: BENIGN (confidence: 0.92)
+Why: IT admin running standard AD query during work hours. No encoded commands, no network callbacks, parent process is Explorer.exe (user session).""")
+        
+        context_parts.append("\n### Example 2: MALICIOUS (Credential Theft)")
+        context_parts.append("""Alert: "LSASS Memory Access Detected"
+User: svc_backup (service account)
+Time: 2:47 AM (off-hours)
+Process: procdump.exe dumping lsass.exe memory
+Verdict: MALICIOUS (confidence: 0.95)
+Why: Service account shouldn't run interactive tools. procdump on LSASS is classic credential dumping (MITRE T1003.001). Off-hours execution, no change ticket.""")
+        
         context_parts.append("\n" + "=" * 70)
         
         # Join all parts
