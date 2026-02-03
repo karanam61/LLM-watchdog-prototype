@@ -22,14 +22,15 @@ flowchart TB
         standard[Standard Queue<br/>Medium/Low]
     end
 
-    subgraph AI["🤖 AI Analysis Pipeline"]
+    subgraph AI["🤖 AI Analysis Pipeline (6 Phases)"]
         direction TB
-        phase1[Phase 1: Security Gates<br/>Input Validation, PII Filter]
-        phase2[Phase 2: Context Building<br/>Supabase Logs, OSINT, RAG]
-        phase3[Phase 3: AI Analysis<br/>Claude Sonnet/Haiku]
-        phase4[Phase 4: Output Validation<br/>Response Safety Check]
-        phase5[Phase 5: Auto-Triage<br/>Auto-close Benign]
-        phase1 --> phase2 --> phase3 --> phase4 --> phase5
+        phase1[Phase 1: Security Gates<br/>InputGuard, Pydantic, PII Filter]
+        phase2[Phase 2: Optimization<br/>Cache Check, Budget Check]
+        phase3[Phase 3: Context Building<br/>RAG, Forensic Logs, OSINT]
+        phase4[Phase 4: AI Analysis<br/>Claude Sonnet/Haiku]
+        phase5[Phase 5: Output Validation<br/>OutputGuard, Safety Check]
+        phase6[Phase 6: Observability<br/>Metrics, Caching, Audit]
+        phase1 --> phase2 --> phase3 --> phase4 --> phase5 --> phase6
     end
 
     subgraph Knowledge["📚 Knowledge & Data"]
@@ -51,10 +52,10 @@ flowchart TB
     queue -->|Medium/Low| standard
     priority --> phase1
     standard --> phase1
-    phase2 -.->|Query Logs| supabase
-    phase2 -.->|Threat Intel| osint
-    phase2 -.->|RAG Search| chromadb
-    phase5 -->|Store Results| supabase
+    phase3 -.->|Query Logs| supabase
+    phase3 -.->|Threat Intel| osint
+    phase3 -.->|RAG Search| chromadb
+    phase6 -->|Store Results| supabase
     supabase -.->|Failover| s3
     supabase -->|Real-time| Dashboard
 ```
@@ -68,11 +69,12 @@ flowchart TB
 - **Queue Manager** (`backend/core/Queue_manager.py`): Routes alerts to priority or standard queues
 
 ### 2. AI Analysis Pipeline (6 Phases)
-1. **Security Gates** (`backend/ai/security_guard.py`): Input validation, prompt injection detection, PII filtering
-2. **Context Building** (`backend/ai/alert_analyzer_final.py`): Gathers forensic logs, OSINT enrichment, RAG queries
-3. **AI Analysis** (`backend/ai/alert_analyzer_final.py`): Claude Sonnet (critical) or Haiku (low-sev) analysis
-4. **Output Validation** (`backend/ai/security_guard.py`): Response safety checks
-5. **Auto-Triage**: Auto-closes benign low-risk alerts
+1. **Security Gates** (`backend/ai/security_guard.py`): InputGuard validation, Pydantic schema, PII filtering
+2. **Optimization** (`backend/ai/alert_analyzer_final.py`): Cache check, budget check
+3. **Context Building** (`backend/ai/alert_analyzer_final.py`): RAG queries, forensic logs, OSINT enrichment
+4. **AI Analysis** (`backend/ai/api_resilience.py`): Claude Sonnet (critical) or Haiku (low-sev) with retry logic
+5. **Output Validation** (`backend/ai/security_guard.py`): OutputGuard safety checks, contradiction detection
+6. **Observability** (`backend/ai/observability.py`): Metrics collection, result caching, audit logging
 
 ### 3. Knowledge & Storage
 - **ChromaDB** (`backend/ai/rag_system.py`): 7 vector collections for RAG (MITRE, historical alerts, business rules)
@@ -90,7 +92,6 @@ flowchart TB
 
 1. SIEM sends alert via webhook to `/ingest`
 2. Alert is parsed, mapped to MITRE, and classified by severity
-3. Queue manager routes to priority (critical/high) or standard (medium/low) queue
+3. Queue manager routes to priority (critical/high) or standard (medium/low) queue based on risk score
 4. Background workers process alerts through 6-phase AI pipeline
-5. Results stored in Supabase, displayed in React dashboard
-6. Auto-triage closes benign low-risk alerts automatically
+5. Results stored in Supabase, displayed in React dashboard via real-time updates

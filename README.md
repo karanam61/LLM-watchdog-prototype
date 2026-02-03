@@ -52,14 +52,15 @@ flowchart TB
         standard[Standard Queue<br/>Medium/Low]
     end
 
-    subgraph AI["🤖 AI Analysis Pipeline"]
+    subgraph AI["🤖 AI Analysis Pipeline (6 Phases)"]
         direction TB
-        phase1[Phase 1: Security Gates<br/>Input Validation, PII Filter]
-        phase2[Phase 2: Context Building<br/>Supabase Logs, OSINT, RAG]
-        phase3[Phase 3: AI Analysis<br/>Claude Sonnet/Haiku]
-        phase4[Phase 4: Output Validation<br/>Response Safety Check]
-        phase5[Phase 5: Auto-Triage<br/>Auto-close Benign]
-        phase1 --> phase2 --> phase3 --> phase4 --> phase5
+        phase1[Phase 1: Security Gates<br/>InputGuard, Pydantic, PII Filter]
+        phase2[Phase 2: Optimization<br/>Cache Check, Budget Check]
+        phase3[Phase 3: Context Building<br/>RAG, Forensic Logs, OSINT]
+        phase4[Phase 4: AI Analysis<br/>Claude Sonnet/Haiku]
+        phase5[Phase 5: Output Validation<br/>OutputGuard, Safety Check]
+        phase6[Phase 6: Observability<br/>Metrics, Caching, Audit]
+        phase1 --> phase2 --> phase3 --> phase4 --> phase5 --> phase6
     end
 
     subgraph Knowledge["📚 Knowledge & Data"]
@@ -81,10 +82,10 @@ flowchart TB
     queue -->|Medium/Low| standard
     priority --> phase1
     standard --> phase1
-    phase2 -.->|Query Logs| supabase
-    phase2 -.->|Threat Intel| osint
-    phase2 -.->|RAG Search| chromadb
-    phase5 -->|Store Results| supabase
+    phase3 -.->|Query Logs| supabase
+    phase3 -.->|Threat Intel| osint
+    phase3 -.->|RAG Search| chromadb
+    phase6 -->|Store Results| supabase
     supabase -.->|Failover| s3
     supabase -->|Real-time| Dashboard
 ```
@@ -99,13 +100,12 @@ flowchart TB
 | Feature | Description |
 |---------|-------------|
 | **26 Security Features** | Input/output validation, PII filtering, prompt injection detection |
-| **Structured SOC Methodology** | 5-step investigation framework + 7 systematic questions per alert |
+| **6-Phase AI Pipeline** | Security gates, optimization, context building, AI analysis, output validation, observability |
 | **RAG Knowledge Retrieval** | 7 ChromaDB collections (MITRE, historical alerts, business rules) |
 | **Analyst Feedback Loop** | Corrections improve future AI decisions via RAG context |
 | **OSINT Integration** | IP, hash, domain reputation lookups |
-| **Explainable AI** | Chain-of-thought reasoning + investigation answers in dashboard |
-| **Cost Optimization** | Haiku for low-sev (90% cheaper), Sonnet for critical |
-| **Auto-Triage** | Benign low-risk alerts auto-closed |
+| **Explainable AI** | Chain-of-thought reasoning with evidence in dashboard |
+| **Cost Optimization** | Severity-based model selection (Sonnet for critical, Haiku for low - 90% cheaper) |
 
 ### Infrastructure
 | Feature | Description |
