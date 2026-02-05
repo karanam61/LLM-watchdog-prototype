@@ -1,215 +1,137 @@
-# AI-SOC Watchdog Testing Guide
+# Testing Guide
 
-This guide explains how to properly test the AI analysis capabilities.
+## Setup
 
----
-
-## ⚠️ The Problem with Naive Testing
-
-**Bad Test (Biased):**
+Start backend:
+```bash
+python app.py
 ```
-Alert Name: "Mimikatz Credential Dumping Detected"
-```
-The AI just reads the name and knows it's malicious. This tests nothing!
 
-**Good Test (Blind):**
+Start frontend:
+```bash
+cd soc-dashboard
+npm run dev
 ```
-Alert Name: "Process Execution Detected"
-Process Logs: rundll32.exe comsvcs.dll MiniDump 624 lsass.dmp
-```
-The AI must analyze the actual evidence to determine it's credential theft.
+
+Open http://localhost:5173
 
 ---
 
 ## Test Scripts
 
-### 1. Comprehensive Blind Test (RECOMMENDED)
+### Run All Tests
+```bash
+python tests/run_all_tests.py
+```
+
+Options:
+- `--quick` - Skip API tests
+- `--api` - API tests only
+- `--ai` - AI component tests only
+
+### AI Analysis Tests (Blind)
 ```bash
 python scripts/test_comprehensive_blind.py --all
+python scripts/test_comprehensive_blind.py --check   # Check results after 2-3 min
+python scripts/test_comprehensive_blind.py --volume 100   # Stress test
 ```
 
-Tests:
-- **False Positives** - Benign activities that look suspicious
-- **True Positives** - Real attacks with forensic evidence
-- **Edge Cases** - Ambiguous scenarios
-- **Volume** - Mixed alerts under load
-
-All alerts have **neutral names**. AI must analyze:
-- Process command lines
-- Network connections
-- File operations
-- Parent process chains
-
-### 2. Blind Test with Logs
+### Blind Tests with Logs
 ```bash
 python scripts/test_blind_with_logs.py --all
-```
-
-Creates alerts with full forensic log chains:
-- Process logs (what ran, parent process, command line)
-- Network logs (connections, bytes, protocols)
-- File logs (created, modified, deleted files)
-
-### 3. Check Results
-```bash
-# Wait 2-3 minutes for AI analysis, then:
-python scripts/test_comprehensive_blind.py --check
-```
-
----
-
-## Test Scenarios
-
-### Benign Scenarios (Should be BENIGN)
-
-| Scenario | Evidence | Why Benign |
-|----------|----------|------------|
-| Windows Update | svchost.exe → wuauserv, Microsoft IPs | Legitimate Windows service |
-| Chrome Update | GoogleUpdate.exe, Google IPs | Known software updater |
-| IT Admin RDP | mstsc.exe from IT subnet, business hours | Normal IT support |
-| Antivirus Scan | MsMpEng.exe reading files | Windows Defender activity |
-| Backup Job | VeeamAgent.exe, large data to backup server | Scheduled backup |
-| Software Install | msiexec.exe from Program Files | Legitimate installation |
-
-### Malicious Scenarios (Should be MALICIOUS)
-
-| Scenario | Evidence | Why Malicious |
-|----------|----------|---------------|
-| PowerShell Cradle | Encoded PS, download from Tor IP | Known attack technique |
-| LSASS Dump | rundll32 comsvcs.dll MiniDump lsass.dmp | Credential theft |
-| Data Exfiltration | curl POST 100MB to unknown IP at 3AM | Data theft |
-| Ransomware | .locked files, README_DECRYPT.txt | Encryption attack |
-| Lateral Movement | PsExec/WMI to other internal hosts | Network spread |
-| Reverse Shell | PowerShell TCPClient to external IP:4444 | C2 connection |
-| DNS Tunneling | High volume encoded DNS queries | Data exfil via DNS |
-
-### Edge Cases (Should be SUSPICIOUS)
-
-| Scenario | Evidence | Why Ambiguous |
-|----------|----------|---------------|
-| Admin PsExec | IT admin using PsExec legitimately | Tool is dual-use |
-| Encoded PS from CI/CD | Jenkins running encoded PowerShell | Could be build script |
-
----
-
-## Running Tests
-
-### Prerequisites
-```bash
-# Start the backend
-python app.py
-
-# In another terminal, run tests
-```
-
-### Quick Test (5 minutes)
-```bash
-# Create 10 benign + 10 malicious scenarios
-python scripts/test_blind_with_logs.py --all
-
-# Wait 2-3 minutes, then check
 python scripts/test_blind_with_logs.py --check
 ```
 
-### Full Test Suite (15 minutes)
+### Benign Alert Tests
 ```bash
-# Run all test types
-python scripts/test_comprehensive_blind.py --all
-
-# This creates:
-# - 10 false positive scenarios
-# - 10 true positive scenarios  
-# - 2 edge cases
-# - 30 volume test alerts
-
-# Check results
-python scripts/test_comprehensive_blind.py --check
+python scripts/seed_test_logs.py --benign
 ```
 
-### Volume/Stress Test
+### Volume Test
 ```bash
-# 100 random alerts
-python scripts/test_comprehensive_blind.py --volume 100
+python scripts/test_volume_and_benign.py --volume 100
+```
+
+### S3 Failover Test
+```bash
+python scripts/test_s3_failover.py
 ```
 
 ---
 
-## Expected Results
-
-### Good AI Performance
-- Benign scenarios → BENIGN verdict (90%+ confidence)
-- Malicious scenarios → MALICIOUS verdict (80%+ confidence)
-- Edge cases → SUSPICIOUS verdict (investigating required)
-- Low false positive rate (<10%)
-- Low false negative rate (<5% for obvious attacks)
-
-### What to Look For
-
-**False Positive (Bad):**
-```
-Alert: Windows Update activity
-Expected: BENIGN
-AI Verdict: MALICIOUS ❌
-```
-
-**False Negative (Very Bad):**
-```
-Alert: Ransomware encrypting files
-Expected: MALICIOUS
-AI Verdict: BENIGN ❌
-```
-
-**Correct Analysis (Good):**
-```
-Alert: Process Execution Detected
-Evidence: powershell.exe -enc ... downloading from Tor IP
-Expected: MALICIOUS
-AI Verdict: MALICIOUS ✓
-Confidence: 95%
-```
-
----
-
-## Legacy Tests (Deprecated)
-
-These old tests have **biased alert names** that give away the answer:
+## Quick Verification
 
 ```bash
-# ⚠️ DON'T USE FOR REAL TESTING
-python scripts/test_volume_and_benign.py  # Biased names!
-```
+# Health check
+curl http://localhost:5000/api/health
 
-The alert names like "Mimikatz Credential Dumping" tell the AI the answer.
+# Queue status
+curl http://localhost:5000/queue-status
+
+# RAG collections
+curl http://localhost:5000/api/rag/collections/status
+
+# System metrics
+curl http://localhost:5000/api/monitoring/metrics/dashboard
+
+# Failover status
+curl http://localhost:5000/api/failover/status
+```
 
 ---
 
-## Metrics to Track
+## Manual Feature Tests
 
-1. **Accuracy** - % of correct verdicts
-2. **False Positive Rate** - Benign marked as malicious
-3. **False Negative Rate** - Malicious marked as benign
-4. **Processing Time** - Seconds per alert
-5. **Confidence Calibration** - Are high-confidence verdicts correct?
+### Create/Close Case
+1. Analyst Dashboard > click alert > Create Case
+2. Alert moves to Investigation Channel
+3. Click Close Alert
+4. Alert moves to History Channel
+
+### Analyst Notes
+1. Click alert > Notes tab
+2. Type notes > Save Notes
+3. Refresh page, verify notes persist
+
+### Auto-Close Benign
+1. Run `python scripts/seed_test_logs.py --benign`
+2. Wait 30-60 seconds
+3. Check History Channel for auto-closed low/medium benign alerts
+
+### Model Selection by Severity
+Watch backend logs when sending alerts:
+- LOW/MEDIUM: Uses claude-3-haiku
+- CRITICAL/HIGH: Uses claude-sonnet
+
+### OSINT Lookups
+Send alert with IP, watch for `[OSINT Enrichment]` in backend logs.
+
+### Dashboard Pages
+- Performance: CPU, memory, AI cost, uptime, charts (updates every 5s)
+- RAG Visualization: Query stats, collections, retrieved docs (updates every 10s)
+- AI Transparency: Verdict distribution, evidence items, chain of thought
+
+---
+
+## Expected AI Results
+
+Benign scenarios should get BENIGN verdict (90%+ confidence):
+- Windows Update, Chrome Update, IT Admin RDP, Antivirus Scan, Backup Job
+
+Malicious scenarios should get MALICIOUS verdict (80%+ confidence):
+- PowerShell download cradle, LSASS dump, Data exfiltration, Ransomware, Lateral movement
+
+Edge cases should get SUSPICIOUS verdict:
+- Admin using PsExec, Encoded PowerShell from CI/CD
 
 ---
 
 ## Troubleshooting
 
-### Alerts Stuck in "Analyzing"
-- Check backend logs for errors
-- Verify Anthropic API key is valid
-- Check if budget is exhausted
+**Alerts stuck in Analyzing**: Check API key, backend logs, budget
 
-### All Alerts Getting Same Verdict
-- Check if logs are being inserted correctly
-- Verify RAG system is providing context
-- Check AI prompt construction
+**All same verdict**: Check log insertion, RAG system, AI prompt
 
-### High False Positive Rate
-- Review benign scenarios
-- Check if certain patterns are being over-weighted
-- Tune detection thresholds
+**Backend not running**: Check port 5000 conflicts
 
----
-
-*Last updated: January 2026*
+**RAG data stuck loading**: Alert may not be analyzed yet (ai_verdict null)

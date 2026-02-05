@@ -1,52 +1,28 @@
 # AI Analysis Enhancements
 
-This document describes the structured AI analysis framework implemented in the AI-SOC Watchdog system.
+This document describes the AI analysis framework in the AI-SOC Watchdog system.
 
 ---
 
-## 1. Structured System Prompt (SOC Analyst Framework)
+## 1. Structured System Prompt
 
 **Location:** `backend/ai/api_resilience.py` lines 226-265
 
-The AI operates as a senior SOC analyst using a **5-Step Investigation Framework**:
+The AI uses a 5-step investigation framework:
 
-### Step 1: Establish Baseline
-- Is this user/system known? What is their normal activity pattern?
-- Is this behavior expected for this role/department/time of day?
-- Have we seen this exact alert before? What was the outcome?
-
-### Step 2: Analyze the 5 W's
-- **WHO**: Which user/service account? Privileged or standard?
-- **WHAT**: What action was taken? What process/file/command?
-- **WHERE**: Source/destination IPs and hosts
-- **WHEN**: Time of activity - business hours? Maintenance window?
-- **WHY**: Is there a legitimate business reason?
-
-### Step 3: Evaluate Indicators
-- Process chain analysis
-- Network behavior
-- File activity
-- Persistence mechanisms
-- MITRE mapping
-
-### Step 4: Cross-Reference
-- OSINT data
-- Historical patterns
-- Business context
-- Asset criticality
-
-### Step 5: Make the Call
-- **BENIGN**: Clear legitimate activity
-- **MALICIOUS**: Clear attack indicators
-- **SUSPICIOUS**: Genuine uncertainty
+1. **Establish Baseline** - Check if user/system behavior is normal for their role and time of day
+2. **Analyze the 5 W's** - Who, What, Where, When, Why
+3. **Evaluate Indicators** - Process chains, network behavior, file activity, MITRE mapping
+4. **Cross-Reference** - OSINT data, historical patterns, business context
+5. **Make the Call** - Benign, Malicious, or Suspicious
 
 ---
 
-## 2. Systematic Investigation Questions
+## 2. Investigation Questions
 
 **Location:** `backend/ai/rag_system.py` lines 633-680
 
-Every alert prompt includes 7 mandatory questions the AI must answer:
+Each alert prompt includes 7 questions the AI must answer:
 
 | Question | Focus Area |
 |----------|------------|
@@ -60,22 +36,24 @@ Every alert prompt includes 7 mandatory questions the AI must answer:
 
 ---
 
-## 3. Analyst Feedback Loop
+## 3. Analyst Feedback
 
 **Locations:**
-- API Endpoint: `app.py` → `POST /api/alerts/<alert_id>/feedback`
-- Storage: `backend/storage/database.py` → `store_analyst_feedback()`
-- RAG Integration: `backend/ai/rag_system.py` → Section 8 (Analyst-Corrected Past Verdicts)
+- API Endpoint: `app.py` - `POST /api/alerts/<alert_id>/feedback`
+- Storage: `backend/storage/database.py` - `store_analyst_feedback()`
+- RAG Integration: `backend/ai/rag_system.py` - Section 8
 
-### How It Works:
+### What it does:
 
-1. **Analyst submits feedback** via the dashboard
-2. **Feedback is stored** in the alerts table with:
+1. Analyst submits feedback via the dashboard
+2. Feedback is stored in the alerts table with:
    - `analyst_verdict`
    - `analyst_notes`
    - `ai_was_correct` (calculated automatically)
-3. **Future alerts query past verdicts** for similar alerts
-4. **AI sees analyst corrections** in the context, learning from mistakes
+3. When analyzing new alerts, the system retrieves past verdicts for similar alerts
+4. Past analyst corrections are included in the AI prompt context
+
+**Note:** Feedback is stored and retrieved for context, but the AI model itself is not retrained. The improvement comes from providing relevant historical corrections in the prompt.
 
 ### API Usage:
 
@@ -91,9 +69,9 @@ curl http://localhost:5000/api/feedback/stats
 
 ---
 
-## 4. Enhanced Output Schema
+## 4. Output Schema
 
-The AI now returns a richer response structure:
+The AI returns:
 
 ```json
 {
@@ -110,11 +88,10 @@ The AI now returns a richer response structure:
     "attack_indicators": "Q7 answer"
   },
   "chain_of_thought": [
-    {"step": 1, "question": "Q1-User", "finding": "...", "interpretation": "..."},
-    ...
+    {"step": 1, "question": "Q1-User", "finding": "...", "interpretation": "..."}
   ],
-  "reasoning": "300+ char synthesis",
-  "recommendation": "Actionable steps"
+  "reasoning": "Synthesis of findings",
+  "recommendation": "Suggested next steps"
 }
 ```
 
@@ -124,13 +101,13 @@ The AI now returns a richer response structure:
 
 **Location:** `backend/ai/alert_analyzer_final.py` lines 660-685
 
-Raw AI confidence is blended with evidence quality:
+Raw AI confidence is adjusted based on evidence quality:
 
 ```python
 calibrated_confidence = (raw_confidence * 0.7) + (evidence_factor * 0.3)
 ```
 
-Evidence factors:
+Evidence factors include:
 - Log availability (process, network, file, windows)
 - OSINT enrichment
 - Chain of thought depth
@@ -140,34 +117,29 @@ Evidence factors:
 
 ## 6. RAG Context Structure
 
-The context sent to AI includes 10 sections:
+Context sent to the AI includes:
 
 1. MITRE Technique Information
 2. Historical Similar Incidents
-3. Business Context & Priorities
-4. Attack Patterns & Indicators
+3. Business Context and Priorities
+4. Attack Patterns and Indicators
 5. Detection Rule That Triggered
 6. Signature Patterns Matched
 7. Asset Context
-8. **Analyst-Corrected Past Verdicts** (NEW)
+8. Analyst-Corrected Past Verdicts
 9. Current Alert Details
 10. Correlated Logs
 
-Plus:
-- Systematic Investigation Questions
-- Verdict Decision Criteria
-- JSON Response Format Requirements
-
 ---
 
-## Summary of Changes
+## Implementation Status
 
 | Feature | Status | Location |
 |---------|--------|----------|
-| Structured System Prompt | ✅ Implemented | api_resilience.py |
-| 7 Investigation Questions | ✅ Implemented | rag_system.py |
-| Analyst Feedback API | ✅ Implemented | app.py |
-| Feedback Storage | ✅ Implemented | database.py |
-| Past Verdicts in RAG | ✅ Implemented | rag_system.py |
-| Investigation Answers Output | ✅ Implemented | alert_analyzer_final.py |
-| Accuracy Stats API | ✅ Implemented | app.py |
+| Structured System Prompt | Implemented | api_resilience.py |
+| 7 Investigation Questions | Implemented | rag_system.py |
+| Analyst Feedback API | Implemented | app.py |
+| Feedback Storage | Implemented | database.py |
+| Past Verdicts in RAG | Implemented | rag_system.py |
+| Investigation Answers Output | Implemented | alert_analyzer_final.py |
+| Accuracy Stats API | Implemented | app.py |

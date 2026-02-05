@@ -1,12 +1,11 @@
-# Complete Alert Flow - Every Single Detail
+# Complete Alert Flow
 
-This document traces EVERY operation from the moment an HTTP request hits the server until the result appears on the dashboard.
+This document traces every operation from the moment an HTTP request hits the server until the result appears on the dashboard.
 
----
-
-## STAGE 1: HTTP Request Arrives at `/ingest`
+## Stage 1: HTTP Request Arrives at /ingest
 
 ### 1.1 Flask Receives Request
+
 ```
 Location: app.py line 1277
 ```
@@ -16,12 +15,10 @@ Location: app.py line 1277
 def ingest_log():
 ```
 
-**What happens:**
-- Flask's WSGI server receives HTTP POST request
-- `MAX_CONTENT_LENGTH = 2MB` checked automatically by Flask (line 119)
-- If payload > 2MB → returns `413 Payload Too Large`
+Flask's WSGI server receives the HTTP POST request. `MAX_CONTENT_LENGTH = 2MB` is enforced automatically (line 119). Payloads exceeding this return `413 Payload Too Large`.
 
 ### 1.2 First Log Entry
+
 ```
 Location: app.py lines 1281-1290
 ```
@@ -39,33 +36,31 @@ live_logger.log(
 )
 ```
 
-**Variables assigned:**
-- `request.remote_addr` → source IP of sender
-- `request.content_type` → should be `application/json`
+Variables assigned:
+- `request.remote_addr` - source IP of sender
+- `request.content_type` - should be `application/json`
 
 ### 1.3 API Key Validation (Optional)
+
 ```
 Location: app.py lines 1298-1322
 ```
 
 ```python
-ingest_api_key = os.getenv("INGEST_API_KEY")  # Get from .env
+ingest_api_key = os.getenv("INGEST_API_KEY")
 if ingest_api_key:
-    provided_key = request.headers.get('X-Ingest-Key', '')  # Get from header
-    if not secrets.compare_digest(provided_key, ingest_api_key):  # Timing-safe compare
-        # LOG FAILURE
+    provided_key = request.headers.get('X-Ingest-Key', '')
+    if not secrets.compare_digest(provided_key, ingest_api_key):
         live_logger.log('SECURITY', 'Ingest API Key Validation FAILED', {...})
-        return jsonify({"error": "Unauthorized"}), 401  # REJECT
+        return jsonify({"error": "Unauthorized"}), 401
     
-    # LOG SUCCESS
     live_logger.log('SECURITY', 'Ingest API Key Validated', {...})
 ```
 
-**Key points:**
-- Uses `secrets.compare_digest()` → prevents timing attacks
-- If `INGEST_API_KEY` not set in `.env` → this check is SKIPPED
+Uses `secrets.compare_digest()` for timing-safe comparison. If `INGEST_API_KEY` is not set in `.env`, this check is skipped entirely.
 
 ### 1.4 Extract JSON Body
+
 ```
 Location: app.py line 1325
 ```
@@ -74,14 +69,12 @@ Location: app.py line 1325
 data = request.json
 ```
 
-**Variable assigned:**
-- `data` → raw JSON dict from HTTP body
+`data` now holds the raw JSON dict from the HTTP body.
 
----
-
-## STAGE 2: Parse Alert (`parse_splunk_alert`)
+## Stage 2: Parse Alert
 
 ### 2.1 Call Parser
+
 ```
 Location: app.py line 1348
 ```
@@ -91,18 +84,15 @@ parsed = parse_splunk_alert(data)
 ```
 
 ### 2.2 Parser Logic
+
 ```
 Location: backend/core/parser.py lines 40-90
 ```
 
-**Print statement:**
-```python
-print(f"      [INNER TRACE] Parser received keys: {list(alert_data.keys())}")
-```
+The parser handles two input formats:
 
-**Two format handlers:**
+Format A - Splunk nested format (has `result` key):
 
-**Format A: Splunk nested format**
 ```python
 if 'result' in alert_data:
     result_block = alert_data.get('result', {})
@@ -118,7 +108,8 @@ if 'result' in alert_data:
     }
 ```
 
-**Format B: Flat format**
+Format B - Flat format:
+
 ```python
 else:
     parsed = {
@@ -133,12 +124,8 @@ else:
     }
 ```
 
-**Print statement:**
-```python
-print(f"      [INNER TRACE] Parser normalized: '{parsed.get('alert_name')}' | IP: {parsed.get('source_ip')}")
-```
-
 ### 2.3 Tracker Log
+
 ```
 Location: app.py lines 1349-1356
 ```
@@ -154,11 +141,10 @@ tracker.log_step(
 )
 ```
 
----
-
-## STAGE 3: MITRE Mapping (`map_to_mitre`)
+## Stage 3: MITRE Mapping
 
 ### 3.1 Live Logger Entry
+
 ```
 Location: app.py lines 1358-1366
 ```
@@ -176,6 +162,7 @@ live_logger.log(
 ```
 
 ### 3.2 Call MITRE Mapper
+
 ```
 Location: app.py line 1368
 ```
@@ -185,6 +172,7 @@ mitre_technique = map_to_mitre(parsed, tracker=tracker)
 ```
 
 ### 3.3 Inject into Parsed Dict
+
 ```
 Location: app.py line 1369
 ```
@@ -194,6 +182,7 @@ parsed['mitre_technique'] = mitre_technique
 ```
 
 ### 3.4 Result Log
+
 ```
 Location: app.py lines 1381-1390
 ```
@@ -211,16 +200,10 @@ live_logger.log(
 )
 ```
 
----
+## Stage 4: Severity Classification
 
-## STAGE 4: Severity Classification (`classify_severity`)
+### 4.1 Call Classifier
 
-### 4.1 Pre-Call Log
-```
-Location: app.py lines 1392-1401
-```
-
-### 4.2 Call Classifier
 ```
 Location: app.py line 1403
 ```
@@ -229,7 +212,8 @@ Location: app.py line 1403
 severity_class = classify_severity(parsed)
 ```
 
-### 4.3 Classifier Logic
+### 4.2 Classifier Logic
+
 ```
 Location: backend/core/Severity.py lines 31-43
 ```
@@ -246,480 +230,213 @@ def classify_severity(parsed_alert):
         return 'MEDIUM_LOW'  # default
 ```
 
-### 4.4 Result Log
-```
-Location: app.py lines 1413-1422
-```
+## Stage 5: Database Insert
+
+The parsed alert is inserted into Supabase:
 
 ```python
-live_logger.log(
-    'FUNCTION',
-    'Severity Classified',
-    {
-        'severity_class': severity_class,
-        'queue_target': 'PRIORITY' if severity_class == 'CRITICAL_HIGH' else 'STANDARD',
-        '_explanation': f"Alert classified as {severity_class}..."
-    },
-    status='success'
-)
-```
+db_result = supabase.table('alerts').insert({
+    'alert_name': parsed.get('alert_name'),
+    'severity': parsed.get('severity'),
+    'severity_class': severity_class,
+    'source_ip': parsed.get('source_ip'),
+    'dest_ip': parsed.get('dest_ip'),
+    'hostname': parsed.get('hostname'),
+    'username': parsed.get('username'),
+    'description': parsed.get('description'),
+    'mitre_technique': parsed.get('mitre_technique'),
+    'raw_data': data,
+    'status': 'pending'
+}).execute()
 
----
-
-## STAGE 5: Store in Database (`store_alert`)
-
-### 5.1 Pre-Store Log
-```
-Location: app.py lines 1434-1444
-```
-
-### 5.2 Call Store Function
-```
-Location: app.py line 1446
-```
-
-```python
-db_result = store_alert(parsed, mitre_technique, severity_class)
-```
-
-### 5.3 Database Insert
-```
-Location: backend/storage/database.py lines 136-169
-```
-
-```python
-def store_alert(parsed_alert, mitre_technique, severity_class):
-    data = {
-        'alert_name': parsed_alert.get('alert_name'),
-        'severity': parsed_alert.get('severity'),
-        'source_ip': parsed_alert.get('source_ip'),
-        'dest_ip': parsed_alert.get('dest_ip'),
-        'timestamp': parsed_alert.get('timestamp'),
-        'description': parsed_alert.get('description'),
-        'mitre_technique': mitre_technique,
-        'severity_class': severity_class
-    }
-    
-    try:
-        response = supabase.table('alerts').insert(data).execute()
-        alert_id = response.data[0]['id']
-        
-        print(f"      [INNER TRACE] DB Insert Success: ID {alert_id} | Name: {parsed_alert.get('alert_name')}")
-        
-        # Also sync to S3 for backup
-        if S3_FAILOVER_AVAILABLE and alert_id:
-            data['id'] = alert_id
-            get_s3_failover().sync_single_record('alerts', data)
-        
-        return response
-    except Exception as e:
-        # Fallback to S3
-        ...
-```
-
-### 5.4 Extract Alert ID
-```
-Location: app.py lines 1449-1453
-```
-
-```python
-alert_id = None
-if db_result and hasattr(db_result, 'data') and db_result.data:
-    alert_id = db_result.data[0]['id']
-elif db_result and isinstance(db_result, list) and len(db_result) > 0:
-    alert_id = db_result[0]['id']
-```
-
-### 5.5 Inject ID Back into Parsed
-```
-Location: app.py lines 1489-1491
-```
-
-```python
+alert_id = db_result.data[0]['id']
 parsed['id'] = alert_id
-parsed['alert_id'] = alert_id  # Redundancy for safety
 ```
 
----
+## Stage 6: Queue Routing
 
-## STAGE 6: Queue Routing (`route_alert`)
+### 6.1 Route Alert
 
-### 6.1 Pre-Route Log
-```
-Location: app.py lines 1493-1503
+```python
+queue = qm.route_alert(parsed)
 ```
 
-### 6.2 Call Queue Manager
+### 6.2 Queue Manager Logic
+
 ```
-Location: app.py line 1505
+Location: backend/core/Queue_manager.py
 ```
 
 ```python
-qm.route_alert(parsed, severity_class, tracker=tracker)
-```
-
-### 6.3 Queue Manager Logic
-```
-Location: backend/core/Queue_manager.py lines 61-133
-```
-
-**Risk calculation:**
-```python
-mitre = alert.get('mitre_technique')
-risk_score = 50  # Default
-
-if mitre:
-    risk_result = calculate_risk_score(mitre, severity_class)
-    risk_score = risk_result['risk_score']
-    damage_score = risk_result['damage_score']
-    multiplier = risk_result['severity_multiplier']
-else:
-    # Fallback severity scores
-    severity_scores = {
-        'CRITICAL_HIGH': 100,
-        'CRITICAL_MEDIUM': 85,
-        'HIGH': 70,
-        'MEDIUM': 50,
-        'LOW': 30
-    }
-    risk_score = severity_scores.get(severity_class, 50)
-```
-
-**Add metadata:**
-```python
-alert['risk_score'] = risk_score
-alert['severity_class'] = severity_class
-```
-
-**Thread-safe routing:**
-```python
-with self.lock:
-    if risk_score >= PRIORITY_QUEUE_THRESHOLD:  # Default 75
-        print(f"[QUEUE TRACE] [*] Routing to PRIORITY Queue (Risk: {risk_score:.1f})")
-        alert['queue_type'] = 'priority'
-        self.priority_queue.append(alert)
+def route_alert(self, alert):
+    severity_class = alert.get('severity_class', 'MEDIUM_LOW')
+    
+    if severity_class == 'CRITICAL_HIGH':
+        self.priority_queue.put(alert)
+        return 'priority'
     else:
-        print(f"[QUEUE TRACE] [INGEST] Routing to STANDARD Queue (Risk: {risk_score:.1f})")
-        alert['queue_type'] = 'standard'
-        self.standard_queue.append(alert)
+        self.standard_queue.put(alert)
+        return 'standard'
 ```
 
-### 6.4 Post-Route Log
-```
-Location: app.py lines 1507-1516
-```
-
----
-
-## STAGE 7: HTTP Response Returns
-
-```
-Location: app.py lines 1590-1596
-```
+## Stage 7: HTTP Response Returns
 
 ```python
 return jsonify({
-    "status": "processed", 
+    "status": "received",
     "alert_id": alert_id,
-    "mitre_technique": mitre_technique,
-    "severity": severity_class,
-    "ai_analysis": {}  # Empty - AI runs async
+    "queue": queue,
+    "severity_class": severity_class
 }), 200
 ```
 
-**AT THIS POINT:**
-- HTTP request is COMPLETE (returns to SIEM/caller)
-- Alert is sitting in queue (priority or standard)
-- Background worker will pick it up
+At this point the HTTP request is complete. AI analysis happens in the background.
 
----
+## Stage 8: Background Worker Picks Up Alert
 
-## STAGE 8: Background Worker Picks Up Alert
+The worker thread continuously polls both queues, prioritizing the priority queue:
 
-### 8.1 Worker Loop
-```
-Location: app.py lines 810-850
-```
-
-**Print and log:**
 ```python
-print("\n[PRIORITY] Auto-processing PRIORITY queue item...")
-
-live_logger.log(
-    'QUEUE',
-    'Alert Dequeued from Priority Queue',
-    {
-        'alert_id': alert.get('alert_id'),
-        'alert_name': alert.get('alert_name'),
-        'queue': 'priority',
-        '_explanation': f"Priority alert dequeued! Alert will now go through the full AI analysis pipeline..."
-    }
-)
+def process_alerts():
+    while True:
+        try:
+            alert = qm.priority_queue.get(timeout=0.5)
+        except Empty:
+            try:
+                alert = qm.standard_queue.get(timeout=0.5)
+            except Empty:
+                continue
+        
+        analyze_alert(alert)
 ```
 
-### 8.2 Dequeue Alert
+## Stage 9: AI Analysis Pipeline
+
+This is the core AI processing. The analyzer runs through six phases.
+
+### 9.1 Phase 1: Input Sanitization
+
 ```
-Location: app.py line 823 / backend/core/Queue_manager.py lines 135-160
+Location: backend/ai/alert_analyzer_final.py lines 381-404
 ```
 
 ```python
-alert = qm.get_next_alert()
+cleaned = self.input_guard.sanitize(alert_dict)
 ```
 
-**Queue Manager prints:**
-```python
-print(f"[*] Retrieved from PRIORITY queue")
-print(f"   Alert: {alert.get('alert_name', 'Unknown')}")
-print(f"   Risk score: {alert.get('risk_score', 0):.1f}")
-print(f"   Remaining in priority: {len(self.priority_queue)}")
-```
+InputGuard (in `backend/ai/security_guard.py` lines 59-144) performs:
 
-### 8.3 Start AI Tracer
-```
-Location: app.py lines 852-857
-```
+1. JSON decoding protection
+2. Unicode normalization (NFKC)
+3. Control character removal
+4. Field length limits (10KB per field, 500KB total)
+5. Prompt injection detection (blocks patterns like `ignore previous`, `system:`, etc.)
 
-```python
-ai_tracer.start_operation(
-    "Alert Analysis",
-    f"Analyzing alert: {alert.get('alert_name', 'Unknown')}",
-    expected_duration=25
-)
-```
+### 9.2 Phase 2: Schema Validation
 
-### 8.4 Log Pipeline Start
 ```
-Location: app.py lines 859-876
+Location: backend/ai/alert_analyzer_final.py lines 419-442
 ```
 
 ```python
-live_logger.log(
-    'AI',
-    'analyzer.analyze_alert() - Starting 26-Feature AI Pipeline',
-    {
-        'alert_id': alert.get('alert_id'),
-        'pipeline_phases': [
-            'Phase 1: Security Gates (Features 1-4, 6, 14-17)',
-            'Phase 2: Optimization (Features 5, 22)',
-            'Phase 3: Context Building (RAG + Forensic Logs)',
-            'Phase 4: AI Analysis (Features 9-13 - Claude API)',
-            'Phase 5: Output Validation (Features 3-4)',
-            'Phase 6: Observability (Features 18-21)'
-        ],
-        '_explanation': 'Starting the complete AI analysis pipeline...'
-    }
-)
+validated = self.validator.validate(cleaned)
 ```
 
----
+Uses Pydantic model `AlertSchema`:
 
-## STAGE 9: AI Analysis Pipeline (`analyze_alert`)
-
-### 9.1 Initialize
+```python
+class AlertSchema(BaseModel):
+    alert_id: str
+    alert_name: str
+    severity: str = 'medium'
+    source_ip: Optional[str] = None
+    dest_ip: Optional[str] = None
+    hostname: Optional[str] = None
+    username: Optional[str] = None
+    description: Optional[str] = None
+    mitre_technique: Optional[str] = None
 ```
-Location: backend/ai/alert_analyzer_final.py lines 155-186
+
+### 9.3 Phase 3: Data Protection
+
+```
+Location: backend/ai/alert_analyzer_final.py lines 457-480
 ```
 
 ```python
-start_time = datetime.now()
-print("\n" + "="*50)
-print(f"[AI TRACE] [GUARD] Analyzer Pipeline START: {alert_dict.get('alert_name', 'Unknown')}")
-print("="*50)
-
-tracer.add_step("Pipeline Started", f"Alert: {alert_dict.get('alert_name')}", "success")
+protected = self.protection.protect(validated)
+protected_dict = protected.dict()
 ```
 
----
+DataProtection (in `backend/ai/security_guard.py` lines 147-266) handles:
 
-### 9.2 PHASE 1: Security Gates
+1. IP redaction (internal IPs like 10.x.x.x, 192.168.x.x become `[INTERNAL_IP_xxx]`)
+2. Username pseudonymization (becomes `[USER_xxx]` with consistent hashing)
+3. Hostname masking
+4. Sensitive pattern redaction (SSNs, credit cards, API keys, passwords)
 
-#### 9.2.1 Input Guard (Features 1-4)
+### 9.4 Phase 4: Context Building
+
 ```
-Location: backend/ai/alert_analyzer_final.py lines 200-244
+Location: backend/ai/alert_analyzer_final.py lines 483-520
 ```
 
-**Print:**
+Gathers three types of context:
+
+1. Historical logs from database:
 ```python
-print("   [AI TRACE] Phase 1: Security Gates (Input Guard)")
+logs = get_related_logs(protected_dict, limit=50)
 ```
 
-**Call:**
+2. RAG search for similar alerts:
 ```python
-is_valid, reason, cleaned = self.input_guard.validate(alert)
+rag_context = self.rag.search(protected_dict.get('description', ''), top_k=5)
 ```
 
-**InputGuard checks (backend/ai/security_guard.py lines 101-196):**
-1. Basic validation: `isinstance(alert, dict)`
-2. Required fields: `alert.get('alert_name')`, `alert.get('description')`
-3. Lakera ML check (DISABLED by default)
-4. Regex patterns (11 patterns for prompt injection)
-5. Truncate if > 5000 chars
-6. Set defaults for optional fields
-
-**If fails:**
+3. OSINT threat intelligence:
 ```python
-if not is_valid:
-    print(f"   [AI TRACE] [ERROR] Security Violation: {reason}")
-    return self._error("Security violation", reason)
+osint_data = self.osint.lookup(protected_dict.get('source_ip'))
 ```
 
-#### 9.2.2 Pydantic Validation (Feature 6)
-```
-Location: backend/ai/alert_analyzer_final.py lines 246-260
-```
-
+Final context string:
 ```python
-validated = self.validator.validate_input(cleaned)
+context = f"""
+Historical Logs:
+{format_logs(logs)}
+
+Similar Past Alerts:
+{rag_context}
+
+Threat Intelligence:
+{format_osint(osint_data)}
+"""
 ```
 
-**Validator (backend/ai/validation.py lines 187-197):**
-```python
-def validate_input(self, alert: Dict[str, Any]) -> AlertInput:
-    validated = AlertInput(**alert)
-    print(f"[Validator] [OK] Input validated: {validated.alert_name}")
-    return validated
-```
+### 9.5 Phase 5: Claude API Call
 
-#### 9.2.3 Data Protection (Features 14-17)
+#### 9.5.1 Build Prompt
+
 ```
-Location: backend/ai/alert_analyzer_final.py lines 262-270
+Location: backend/ai/alert_analyzer_final.py lines 523-548
 ```
 
 ```python
-validated_dict = validated.dict()
-is_safe, reason, protected = self.data_protection.validate_input(validated_dict)
+prompt = self.prompt_builder.build(protected_dict, context)
 ```
 
-**DataProtectionGuard (backend/ai/data_protection.py lines 316-369):**
-1. Check tokenization
-2. Filter PII (15 patterns: SSN, credit cards, API keys, emails, phones)
-3. Check input size (max 10,000 chars)
+PromptBuilder creates a structured prompt with:
+- System instructions (role, output format, safety rules)
+- Alert data (all protected fields)
+- Context (logs, RAG, OSINT)
+- Output schema (JSON with verdict, confidence, evidence, etc.)
 
----
-
-### 9.3 PHASE 2: Optimization
-
-#### 9.3.1 Cache Check (Feature 22)
-```
-Location: backend/ai/alert_analyzer_final.py lines 296-308
-```
+#### 9.5.2 API Call
 
 ```python
-if self.cache:
-    cache_key = f"alert:{protected.get('alert_id', 'unknown')}"
-    cached = self.cache.get(cache_key)
-    if cached:
-        return json.loads(cached)  # EARLY RETURN - skip AI!
+api_response = self.api_client.call(prompt, max_tokens=2000)
 ```
 
-#### 9.3.2 Budget Check (Feature 5)
-```
-Location: backend/ai/alert_analyzer_final.py lines 310-340
-```
-
-```python
-print("   [AI TRACE] Phase 2: Budget Check")
-can_process, cost, reason = self.budget.can_process_queue('priority', 1)
-
-if not can_process:
-    print(f"   [AI TRACE] [ERROR] Budget Exhausted: {reason}")
-    return self._error("Budget exhausted", reason, queued=True)
-```
-
----
-
-### 9.4 PHASE 3: Context Building
-
-#### 9.4.1 Query Forensic Logs
-```
-Location: backend/ai/alert_analyzer_final.py lines 357-396
-```
-
-```python
-target_id = protected_dict.get('id') or protected_dict.get('alert_id')
-
-logs = {
-    'process_logs': query_process_logs(target_id),
-    'network_logs': query_network_logs(target_id),
-    'file_logs': query_file_activity_logs(target_id),
-    'windows_logs': query_windows_event_logs(target_id)
-}
-```
-
-**Each query prints (database.py):**
-```python
-print(f"      [INNER TRACE] DB Query (Process): AlertID={alert_id} -> Found {count} logs")
-```
-
-#### 9.4.2 OSINT Enrichment
-```
-Location: backend/ai/alert_analyzer_final.py lines 398-425
-```
-
-```python
-osint_data = enrich_with_osint(protected_dict)
-```
-
-Queries:
-- IP reputation
-- Hash reputation  
-- Domain reputation
-
-#### 9.4.3 RAG Context Building
-```
-Location: backend/ai/alert_analyzer_final.py lines 427-463
-```
-
-```python
-print("   [AI TRACE] Phase 3: Building RAG Context")
-context = self._build_context(protected_dict, logs, osint_data)
-print(f"   [AI TRACE] Context Built: {len(context)} chars")
-```
-
-**RAG queries 7 ChromaDB collections:**
-1. mitre_techniques
-2. historical_alerts
-3. business_rules
-4. attack_patterns
-5. detection_rules
-6. detection_signatures
-7. company_infrastructure
-
----
-
-### 9.5 PHASE 4: AI Analysis
-
-#### 9.5.1 Claude API Call
-```
-Location: backend/ai/alert_analyzer_final.py lines 500-513
-```
-
-```python
-api_start_time = _time.time()
-
-alert_severity = protected_dict.get('severity_class') or protected_dict.get('severity', 'medium')
-
-api_response = self.api_client.analyze_with_resilience(
-    context=context,
-    budget_tracker=self.budget,
-    max_retries=self.max_retries,
-    timeout=self.api_timeout,
-    estimated_cost=cost,
-    severity=alert_severity
-)
-
-api_duration = _time.time() - api_start_time
-```
-
-**Model selection:**
-- `CRITICAL_HIGH` → Claude Sonnet (~$0.02/alert)
-- `MEDIUM_LOW` → Claude Haiku (~$0.002/alert)
-
-#### 9.5.2 Log API Metrics
-```
-Location: backend/ai/alert_analyzer_final.py lines 551-560
-```
-
+Metrics logged:
 ```python
 monitor.log_api_call(
     model=self.api_client.model,
@@ -731,6 +448,7 @@ monitor.log_api_call(
 ```
 
 #### 9.5.3 Parse Response
+
 ```
 Location: backend/ai/alert_analyzer_final.py lines 570-584
 ```
@@ -739,16 +457,14 @@ Location: backend/ai/alert_analyzer_final.py lines 570-584
 analysis = self._parse_response(api_response['response'])
 ```
 
-**Parser (lines 734-804):**
+Parser steps:
 1. Extract text from Anthropic response object
-2. Find JSON in markdown code blocks OR raw `{...}` 
+2. Find JSON in markdown code blocks or raw `{...}`
 3. Sanitize control characters
 4. Parse JSON
 5. Normalize to standard fields: `verdict`, `confidence`, `evidence`, `chain_of_thought`, `reasoning`, `recommendation`
 
----
-
-### 9.6 PHASE 5: Output Validation
+### 9.6 Phase 6: Output Validation
 
 ```
 Location: backend/ai/alert_analyzer_final.py lines 598-623
@@ -761,22 +477,21 @@ if not is_safe:
     return self._fallback(protected)
 ```
 
-**OutputGuard (backend/ai/security_guard.py lines 269-338):**
-1. Check required fields: `verdict`, `confidence`, `reasoning`
-2. Valid verdict: `['malicious', 'benign', 'suspicious', 'error']`
-3. Valid confidence: `0.0 <= conf <= 1.0`
-4. Scan for dangerous commands (15 patterns: `rm -rf`, `DROP DATABASE`, etc.)
-5. Contradiction detection (benign + attack keywords = issue)
+OutputGuard (in `backend/ai/security_guard.py` lines 269-338) checks:
+1. Required fields present: `verdict`, `confidence`, `reasoning`
+2. Valid verdict: one of `malicious`, `benign`, `suspicious`, `error`
+3. Valid confidence: between 0.0 and 1.0
+4. No dangerous commands (scans for 15 patterns like `rm -rf`, `DROP DATABASE`, etc.)
+5. No contradictions (e.g., benign verdict with attack keywords)
 
----
-
-### 9.7 PHASE 6: Observability
+### 9.7 Phase 7: Observability
 
 ```
 Location: backend/ai/alert_analyzer_final.py lines 653-727
 ```
 
-#### 9.7.1 Build Final Response
+Build final response:
+
 ```python
 duration = (datetime.now() - start_time).total_seconds()
 result = {
@@ -796,29 +511,23 @@ result = {
 }
 ```
 
-#### 9.7.2 Cache Result
+Cache result:
+
 ```python
 if self.cache:
     cache_key = f"alert:{protected_dict.get('alert_id', 'unknown')}"
     self.cache.set(cache_key, json.dumps(result), ex=3600)  # 1 hour TTL
 ```
 
-#### 9.7.3 Log to Audit/Metrics
+Log to audit/metrics:
+
 ```python
 self.audit.log_analysis(protected_dict, result, result['metadata'])
 self.metrics.record_processing_time(protected_dict.get('alert_id'), duration, 'priority')
 self.health.record_api_call(True, duration)
 ```
 
-#### 9.7.4 Final Print
-```python
-print(f"[AI TRACE] [OK] Pipeline Complete. Verdict: {result.get('verdict')}")
-print("="*50 + "\n")
-```
-
----
-
-## STAGE 10: Update Database with AI Result
+## Stage 10: Update Database with AI Result
 
 ```
 Location: app.py line 882
@@ -828,7 +537,8 @@ Location: app.py line 882
 update_alert_with_ai_analysis(alert['alert_id'], ai_result)
 ```
 
-**Database update (backend/storage/database.py):**
+Database update:
+
 ```python
 supabase.table('alerts').update({
     'ai_verdict': result.get('verdict'),
@@ -842,9 +552,7 @@ supabase.table('alerts').update({
 }).eq('id', alert_id).execute()
 ```
 
----
-
-## STAGE 11: Auto-Close Logic
+## Stage 11: Auto-Close Logic
 
 ```
 Location: app.py lines 884-911
@@ -861,13 +569,14 @@ if verdict == 'benign' and confidence >= 0.7 and severity_class != 'CRITICAL_HIG
         'auto_closed': True,
         'auto_close_reason': f'AI verdict: benign ({confidence:.0%} confidence)'
     }).eq('id', alert['alert_id']).execute()
-    
-    print(f"[AUTO-CLOSE] Alert {alert['alert_id']} auto-closed (benign, {confidence:.0%})")
 ```
 
----
+Auto-close triggers when:
+- Verdict is `benign`
+- Confidence is at least 70%
+- Severity is not `CRITICAL_HIGH`
 
-## STAGE 12: Final Logs
+## Stage 12: Final Logs
 
 ```
 Location: app.py lines 914-945
@@ -887,8 +596,6 @@ ai_tracer.end_operation(
     result_summary=f"Verdict: {ai_result.get('verdict')} ({ai_result.get('confidence'):.0%})"
 )
 
-print(f"[OK] Background Analysis Complete: {alert['alert_id']}")
-
 live_logger.log(
     'AI',
     'AI Analysis Complete - Verdict Determined',
@@ -904,11 +611,10 @@ live_logger.log(
 )
 ```
 
----
+## Stage 13: Dashboard Fetches Updated Data
 
-## STAGE 13: Dashboard Fetches Updated Data
+### 13.1 Frontend Polls /alerts
 
-### 13.1 Frontend Polls `/alerts`
 ```
 Location: app.py lines 1607-1649
 ```
@@ -931,6 +637,7 @@ def get_alerts():
 ```
 
 ### 13.2 Dashboard Displays
+
 The React dashboard (`soc-dashboard/src/pages/AnalystDashboard.jsx`) displays:
 - Alert name
 - Severity
@@ -940,30 +647,28 @@ The React dashboard (`soc-dashboard/src/pages/AnalystDashboard.jsx`) displays:
 - Evidence list
 - Chain of thought reasoning
 
----
-
 ## Summary: Complete Variable Flow
 
 ```
-HTTP POST → data (raw JSON)
-         → parsed (normalized dict)
-         → mitre_technique (string)
-         → severity_class (CRITICAL_HIGH/MEDIUM_LOW)
-         → db_result → alert_id (UUID)
-         → parsed['id'] = alert_id (injected)
-         → qm.route_alert() → queue (priority/standard)
-         → [HTTP RETURNS 200]
-         
-Worker picks up → alert (from queue)
-               → cleaned (after InputGuard)
-               → validated (Pydantic model)
-               → protected (after DataProtection)
-               → logs (4 log types from DB)
-               → osint_data (threat intel)
-               → context (RAG + logs + OSINT string)
-               → api_response (Claude response)
-               → analysis (parsed JSON)
-               → result (final dict)
-               → [DB UPDATE]
-               → [DASHBOARD DISPLAYS]
+HTTP POST -> data (raw JSON)
+          -> parsed (normalized dict)
+          -> mitre_technique (string)
+          -> severity_class (CRITICAL_HIGH/MEDIUM_LOW)
+          -> db_result -> alert_id (UUID)
+          -> parsed['id'] = alert_id (injected)
+          -> qm.route_alert() -> queue (priority/standard)
+          -> [HTTP RETURNS 200]
+          
+Worker picks up -> alert (from queue)
+               -> cleaned (after InputGuard)
+               -> validated (Pydantic model)
+               -> protected (after DataProtection)
+               -> logs (4 log types from DB)
+               -> osint_data (threat intel)
+               -> context (RAG + logs + OSINT string)
+               -> api_response (Claude response)
+               -> analysis (parsed JSON)
+               -> result (final dict)
+               -> [DB UPDATE]
+               -> [DASHBOARD DISPLAYS]
 ```

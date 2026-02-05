@@ -4,11 +4,11 @@
 
 ```mermaid
 flowchart TB
-    subgraph SIEM["🔔 SIEM / Security Tools"]
+    subgraph SIEM["SIEM / Security Tools"]
         splunk[Splunk/CrowdStrike/Wazuh]
     end
 
-    subgraph Backend["⚙️ Flask Backend (app.py)"]
+    subgraph Backend["Flask Backend (app.py)"]
         direction LR
         parser[Parser]
         mitre[MITRE Mapper]
@@ -17,12 +17,12 @@ flowchart TB
         parser --> mitre --> severity --> queue
     end
 
-    subgraph Queues["📬 Dual Queue System"]
+    subgraph Queues["Dual Queue System"]
         priority[Priority Queue<br/>Critical/High]
         standard[Standard Queue<br/>Medium/Low]
     end
 
-    subgraph AI["🤖 AI Analysis Pipeline (6 Phases)"]
+    subgraph AI["AI Analysis Pipeline (6 Phases)"]
         direction TB
         phase1[Phase 1: Security Gates<br/>InputGuard, Pydantic, PII Filter]
         phase2[Phase 2: Optimization<br/>Cache Check, Budget Check]
@@ -33,14 +33,14 @@ flowchart TB
         phase1 --> phase2 --> phase3 --> phase4 --> phase5 --> phase6
     end
 
-    subgraph Knowledge["📚 Knowledge & Data"]
+    subgraph Knowledge["Knowledge & Data"]
         chromadb[(ChromaDB<br/>7 RAG Collections)]
         supabase[(Supabase<br/>PostgreSQL)]
         s3[(AWS S3<br/>Failover)]
         osint[OSINT APIs<br/>IP/Hash/Domain]
     end
 
-    subgraph Dashboard["📊 React Dashboard"]
+    subgraph Dashboard["React Dashboard"]
         analyst[Analyst Console]
         transparency[AI Transparency]
         rag_viz[RAG Visualizer]
@@ -60,38 +60,50 @@ flowchart TB
     supabase -->|Real-time| Dashboard
 ```
 
-## Component Details
+## Components
 
-### 1. Alert Ingestion Layer
-- **Parser** (`backend/core/parser.py`): Normalizes SIEM formats (Splunk, Wazuh) into standard schema
-- **MITRE Mapper** (`backend/core/mitre_mapping.py`): Maps alerts to MITRE ATT&CK techniques
-- **Severity Classifier** (`backend/core/Severity.py`): Categorizes alerts as CRITICAL_HIGH or MEDIUM_LOW
-- **Queue Manager** (`backend/core/Queue_manager.py`): Routes alerts to priority or standard queues
+### Alert Ingestion
 
-### 2. AI Analysis Pipeline (6 Phases)
-1. **Security Gates** (`backend/ai/security_guard.py`): InputGuard validation, Pydantic schema, PII filtering
-2. **Optimization** (`backend/ai/alert_analyzer_final.py`): Cache check, budget check
-3. **Context Building** (`backend/ai/alert_analyzer_final.py`): RAG queries, forensic logs, OSINT enrichment
-4. **AI Analysis** (`backend/ai/api_resilience.py`): Claude Sonnet (critical) or Haiku (low-sev) with retry logic
-5. **Output Validation** (`backend/ai/security_guard.py`): OutputGuard safety checks, contradiction detection
-6. **Observability** (`backend/ai/observability.py`): Metrics collection, result caching, audit logging
+| Component | File | Purpose |
+|-----------|------|---------|
+| Parser | `backend/core/parser.py` | Normalizes SIEM formats (Splunk, Wazuh) into a standard schema |
+| MITRE Mapper | `backend/core/mitre_mapping.py` | Maps alerts to MITRE ATT&CK techniques |
+| Severity Classifier | `backend/core/Severity.py` | Categorizes alerts as CRITICAL_HIGH or MEDIUM_LOW |
+| Queue Manager | `backend/core/Queue_manager.py` | Routes alerts to priority or standard queues |
 
-### 3. Knowledge & Storage
-- **ChromaDB** (`backend/ai/rag_system.py`): 7 vector collections for RAG (MITRE, historical alerts, business rules)
-- **Supabase** (`backend/storage/database.py`): Primary PostgreSQL database
-- **AWS S3** (`backend/storage/s3_failover.py`): Failover storage for resilience
-- **OSINT** (`backend/ai/osint_lookup.py`): IP, hash, domain reputation lookups
+### AI Analysis Pipeline
 
-### 4. React Dashboard
-- **Analyst Console**: Alert triage, investigation, notes
-- **AI Transparency**: Proof of AI analysis, evidence verification
-- **RAG Visualizer**: Knowledge base usage per alert
-- **Performance Metrics**: System health, AI costs, processing stats
+| Phase | File | Purpose |
+|-------|------|---------|
+| 1. Security Gates | `backend/ai/security_guard.py` | Validates input, enforces schema, filters PII |
+| 2. Optimization | `backend/ai/alert_analyzer_final.py` | Checks cache and budget before processing |
+| 3. Context Building | `backend/ai/alert_analyzer_final.py` | Queries RAG, forensic logs, and OSINT |
+| 4. AI Analysis | `backend/ai/api_resilience.py` | Calls Claude Sonnet (critical) or Haiku (low-sev) |
+| 5. Output Validation | `backend/ai/security_guard.py` | Checks output safety, detects contradictions |
+| 6. Observability | `backend/ai/observability.py` | Collects metrics, caches results, logs audit trail |
+
+### Storage
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| ChromaDB | `backend/ai/rag_system.py` | Vector store with 7 collections for RAG |
+| Supabase | `backend/storage/database.py` | Primary PostgreSQL database |
+| AWS S3 | `backend/storage/s3_failover.py` | Backup storage when primary fails |
+| OSINT | `backend/ai/osint_lookup.py` | IP, hash, and domain reputation lookups |
+
+### Dashboard
+
+| Component | Purpose |
+|-----------|---------|
+| Analyst Console | Alert triage, investigation, notes |
+| AI Transparency | Shows AI analysis evidence |
+| RAG Visualizer | Displays knowledge base usage per alert |
+| Performance Metrics | System health, AI costs, processing stats |
 
 ## Data Flow
 
 1. SIEM sends alert via webhook to `/ingest`
-2. Alert is parsed, mapped to MITRE, and classified by severity
-3. Queue manager routes to priority (critical/high) or standard (medium/low) queue based on risk score
-4. Background workers process alerts through 6-phase AI pipeline
-5. Results stored in Supabase, displayed in React dashboard via real-time updates
+2. Parser normalizes the alert, MITRE Mapper adds technique IDs, Severity Classifier assigns risk
+3. Queue Manager routes critical/high alerts to priority queue, medium/low to standard queue
+4. Background workers process alerts through the 6-phase AI pipeline
+5. Results are stored in Supabase and pushed to the dashboard via real-time updates

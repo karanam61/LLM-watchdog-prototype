@@ -183,7 +183,7 @@ def seed_logs_for_alert(base_url: str, alert_id: int, logs: dict):
     """Seed forensic logs into database for the alert."""
     # This would normally insert into Supabase directly
     # For now, we'll note that logs should be seeded
-    print(f"   📝 Logs to seed for alert {alert_id}:")
+    print(f"   Logs to seed for alert {alert_id}:")
     for log_type, entries in logs.items():
         print(f"      - {log_type}: {len(entries)} entries")
 
@@ -234,28 +234,28 @@ def check_health(base_url: str) -> dict:
 def run_tests(base_url: str, include_feedback: bool = True):
     """Run all test scenarios."""
     print("\n" + "="*70)
-    print("🧪 AI-SOC WATCHDOG - NEW FEATURES TEST")
+    print("[TEST] AI-SOC WATCHDOG - NEW FEATURES TEST")
     print("="*70)
     
     # 1. Health Check
-    print("\n📊 Step 1: Health Check")
+    print("\n[HEALTH] Step 1: Health Check")
     health = check_health(base_url)
     print(f"   Status: {health.get('status', 'unknown')}")
     components = health.get('components', {})
     for comp, status in components.items():
-        icon = "✅" if status in ['running', 'connected', 'ready', 'configured'] else "⚠️"
+        icon = "[OK]" if status in ['running', 'connected', 'ready', 'configured'] else "[!]"
         print(f"   {icon} {comp}: {status}")
     
     # 2. Send Test Alerts
-    print("\n📨 Step 2: Sending Test Alerts")
+    print("\n[SEND] Step 2: Sending Test Alerts")
     alert_ids = []
     
     for scenario in SCENARIOS:
-        print(f"\n   🎯 {scenario['name']}")
+        print(f"\n   [*] {scenario['name']}")
         result = send_alert(base_url, scenario['alert'])
         
         if 'error' in result:
-            print(f"      ❌ Error: {result['error']}")
+            print(f"      [ERROR] {result['error']}")
             continue
         
         alert_id = result.get('alert_id')
@@ -265,20 +265,20 @@ def run_tests(base_url: str, include_feedback: bool = True):
             'name': scenario['name']
         })
         
-        print(f"      ✅ Alert ID: {alert_id}")
-        print(f"      📋 MITRE: {result.get('mitre_technique', 'N/A')}")
-        print(f"      ⚡ Severity: {result.get('severity', 'N/A')}")
+        print(f"      [OK] Alert ID: {alert_id}")
+        print(f"      MITRE: {result.get('mitre_technique', 'N/A')}")
+        print(f"      Severity: {result.get('severity', 'N/A')}")
         
         # Note about logs
         seed_logs_for_alert(base_url, alert_id, scenario.get('logs', {}))
     
     # 3. Wait for AI processing
-    print("\n⏳ Step 3: Waiting for AI Analysis (30 seconds)...")
+    print("\n[WAIT] Step 3: Waiting for AI Analysis (30 seconds)...")
     time.sleep(30)
     
     # 4. Test Feedback Loop
     if include_feedback and alert_ids:
-        print("\n📝 Step 4: Testing Feedback Loop")
+        print("\n[FEEDBACK] Step 4: Testing Feedback Loop")
         
         # Submit feedback on first alert (should be benign)
         if len(alert_ids) >= 1:
@@ -291,9 +291,9 @@ def run_tests(base_url: str, include_feedback: bool = True):
                 "Confirmed IT admin running standard AD query during business hours"
             )
             if 'error' in feedback_result:
-                print(f"      ❌ Error: {feedback_result['error']}")
+                print(f"      [ERROR] {feedback_result['error']}")
             else:
-                print(f"      ✅ Feedback submitted")
+                print(f"      [OK] Feedback submitted")
                 print(f"      AI was correct: {feedback_result.get('ai_was_correct', 'N/A')}")
         
         # Submit feedback on second alert (should be malicious)
@@ -307,16 +307,16 @@ def run_tests(base_url: str, include_feedback: bool = True):
                 "Confirmed credential theft - procdump on LSASS with exfiltration"
             )
             if 'error' in feedback_result:
-                print(f"      ❌ Error: {feedback_result['error']}")
+                print(f"      [ERROR] {feedback_result['error']}")
             else:
-                print(f"      ✅ Feedback submitted")
+                print(f"      [OK] Feedback submitted")
                 print(f"      AI was correct: {feedback_result.get('ai_was_correct', 'N/A')}")
     
     # 5. Get Feedback Stats
-    print("\n📈 Step 5: AI Accuracy Statistics")
+    print("\n[STATS] Step 5: AI Accuracy Statistics")
     stats = get_feedback_stats(base_url)
     if 'error' in stats:
-        print(f"   ❌ Error: {stats['error']}")
+        print(f"   [ERROR] {stats['error']}")
     else:
         print(f"   Total Reviewed: {stats.get('total_reviewed', 0)}")
         print(f"   Accuracy: {stats.get('accuracy', 'N/A')}%")
@@ -324,9 +324,9 @@ def run_tests(base_url: str, include_feedback: bool = True):
         print(f"   Incorrect: {stats.get('incorrect', 0)}")
     
     print("\n" + "="*70)
-    print("✅ TEST COMPLETE")
+    print("[DONE] TEST COMPLETE")
     print("="*70)
-    print("\n📌 Next Steps:")
+    print("\nNext Steps:")
     print("   1. Check dashboard to see alerts with AI verdicts")
     print("   2. Look at AI Transparency page for investigation_answers")
     print("   3. Send more alerts to see feedback loop in action")

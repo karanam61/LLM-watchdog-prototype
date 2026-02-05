@@ -1,34 +1,30 @@
-# API Reference - AI-SOC Watchdog
+# API Reference
 
-## Base URL
-```
-http://localhost:5000
-```
-
----
+Base URL: `http://localhost:5000`
 
 ## Authentication
 
-### Ingestion Endpoint
-Requires `X-API-Key` header:
+The `/ingest` endpoint requires an API key header:
+
 ```
 X-API-Key: secure-ingest-key-123
 ```
 
----
+## Endpoints
 
-## Core Endpoints (app.py)
+### POST /ingest
 
-### 1. POST /ingest
-**Purpose:** Main entry point for all security alerts from SIEMs
+Receives security alerts from SIEMs.
 
 **Headers:**
-```
-Content-Type: application/json
-X-API-Key: secure-ingest-key-123
-```
 
-**Request Body:**
+| Header | Value |
+|--------|-------|
+| Content-Type | application/json |
+| X-API-Key | your-api-key |
+
+**Request:**
+
 ```json
 {
   "alert_name": "PowerShell Download Cradle",
@@ -43,6 +39,7 @@ X-API-Key: secure-ingest-key-123
 ```
 
 **Response:**
+
 ```json
 {
   "status": "processed",
@@ -53,19 +50,12 @@ X-API-Key: secure-ingest-key-123
 }
 ```
 
-**Functions Called:**
-1. `parse_splunk_alert(data)` - Normalize SIEM format
-2. `map_to_mitre(parsed)` - Map to MITRE ATT&CK
-3. `classify_severity(parsed)` - Determine priority
-4. `store_alert(parsed, mitre, severity)` - Save to database
-5. `qm.route_alert(parsed, severity)` - Add to queue
+### GET /alerts
 
----
-
-### 2. GET /alerts
-**Purpose:** Fetch recent alerts for Analyst Console
+Returns recent alerts (up to 50).
 
 **Response:**
+
 ```json
 {
   "alerts": [
@@ -84,52 +74,43 @@ X-API-Key: secure-ingest-key-123
 }
 ```
 
-**Functions Called:**
-- `supabase.table('alerts').select('*').order('created_at').limit(50)`
+### PATCH /api/alerts/{alert_id}
 
----
+Updates alert status.
 
-### 3. PATCH /api/alerts/{alert_id}
-**Purpose:** Update alert status (close/investigate)
+**Request:**
 
-**Request Body:**
 ```json
 {
   "status": "closed"
 }
 ```
 
-**Valid Statuses:** `open`, `investigating`, `closed`, `false_positive`
+**Valid statuses:** `open`, `investigating`, `closed`, `false_positive`
 
-**Functions Called:**
-- `supabase.table('alerts').update({'status': status}).eq('id', alert_id)`
+### GET /api/logs
 
----
-
-### 4. GET /api/logs
-**Purpose:** Fetch forensic logs for investigation
+Returns forensic logs for an alert.
 
 **Query Parameters:**
-- `type` - Log type: `process`, `network`, `file`, `windows`
-- `alert_id` - UUID of the alert
+
+| Parameter | Description |
+|-----------|-------------|
+| type | Log type: `process`, `network`, `file`, `windows` |
+| alert_id | UUID of the alert |
 
 **Example:**
+
 ```
 GET /api/logs?type=process&alert_id=uuid-here
 ```
 
-**Functions Called:**
-- `query_process_logs(alert_id)`
-- `query_network_logs(alert_id)`
-- `query_file_activity_logs(alert_id)`
-- `query_windows_event_logs(alert_id)`
+### GET /queue-status
 
----
-
-### 5. GET /queue-status
-**Purpose:** Get current queue sizes
+Returns current queue sizes.
 
 **Response:**
+
 ```json
 {
   "priority_count": 2,
@@ -137,14 +118,14 @@ GET /api/logs?type=process&alert_id=uuid-here
 }
 ```
 
----
+## RAG Endpoints
 
-## RAG Monitoring Endpoints (backend/monitoring/rag_api.py)
+### GET /api/rag/usage/{alert_id}
 
-### 6. GET /api/rag/usage/{alert_id}
-**Purpose:** Get RAG knowledge used for a specific alert analysis
+Returns RAG knowledge used for a specific alert analysis.
 
 **Response:**
+
 ```json
 {
   "alert_id": "uuid",
@@ -159,20 +140,12 @@ GET /api/logs?type=process&alert_id=uuid-here
 }
 ```
 
-**Functions Called:**
-- `RAGSystem.query_mitre_info(technique_id)`
-- `RAGSystem.query_historical_alerts(alert_name, mitre)`
-- `RAGSystem.query_business_rules(department, severity)`
-- `RAGSystem.query_attack_patterns(mitre_technique)`
-- `RAGSystem.query_detection_signatures(alert_name)`
-- `RAGSystem.query_asset_context(username, hostname)`
+### GET /api/rag/stats
 
----
-
-### 7. GET /api/rag/stats
-**Purpose:** Get overall RAG system statistics
+Returns RAG system statistics.
 
 **Response:**
+
 ```json
 {
   "total_queries": 150,
@@ -184,12 +157,12 @@ GET /api/logs?type=process&alert_id=uuid-here
 }
 ```
 
----
+### GET /api/rag/collections/status
 
-### 8. GET /api/rag/collections/status
-**Purpose:** Health check for RAG knowledge base
+Returns health status of RAG collections.
 
 **Response:**
+
 ```json
 {
   "collections": [
@@ -201,14 +174,14 @@ GET /api/logs?type=process&alert_id=uuid-here
 }
 ```
 
----
+## Monitoring Endpoints
 
-## Monitoring Endpoints (backend/monitoring/api.py)
+### GET /api/monitoring/metrics/dashboard
 
-### 9. GET /api/monitoring/metrics/dashboard
-**Purpose:** Get real-time system metrics (CPU, Memory, Budget)
+Returns system metrics.
 
 **Response:**
+
 ```json
 {
   "cpu_usage": 45.2,
@@ -218,16 +191,19 @@ GET /api/logs?type=process&alert_id=uuid-here
 }
 ```
 
----
+### GET /api/monitoring/logs/recent
 
-### 10. GET /api/monitoring/logs/recent
-**Purpose:** Get recent operation logs for Debug Dashboard
+Returns recent operation logs.
 
 **Query Parameters:**
-- `limit` - Number of logs (default: 100)
-- `category` - Filter by: `API`, `WORKER`, `AI`, `RAG`, `DATABASE`, `QUEUE`
+
+| Parameter | Description |
+|-----------|-------------|
+| limit | Number of logs (default: 100) |
+| category | Filter: `API`, `WORKER`, `AI`, `RAG`, `DATABASE`, `QUEUE` |
 
 **Response:**
+
 ```json
 {
   "operations": [
@@ -242,21 +218,16 @@ GET /api/logs?type=process&alert_id=uuid-here
 }
 ```
 
----
+### GET /api/monitoring/logs/stream
 
-### 11. GET /api/monitoring/logs/stream
-**Purpose:** Server-Sent Events stream for real-time logs
+Server-Sent Events stream for real-time logs.
 
-**Response:** SSE stream with JSON events
+### GET /api/transparency/alert/{alert_id}
 
----
-
-## Transparency Endpoints (backend/monitoring/transparency_api.py)
-
-### 12. GET /api/transparency/alert/{alert_id}
-**Purpose:** Get detailed AI decision explanation
+Returns AI decision explanation for an alert.
 
 **Response:**
+
 ```json
 {
   "alert_id": "uuid",
@@ -270,29 +241,26 @@ GET /api/logs?type=process&alert_id=uuid-here
 }
 ```
 
----
-
 ## Error Responses
 
-All endpoints return errors in this format:
 ```json
 {
   "error": "Error message here"
 }
 ```
 
-**HTTP Status Codes:**
-- `200` - Success
-- `400` - Bad Request (missing parameters)
-- `401` - Unauthorized (invalid API key)
-- `404` - Not Found
-- `500` - Server Error
+| Status Code | Meaning |
+|-------------|---------|
+| 200 | Success |
+| 400 | Bad request |
+| 401 | Invalid API key |
+| 404 | Not found |
+| 500 | Server error |
 
----
+## Examples
 
-## Testing with cURL
+**Ingest an alert:**
 
-### Ingest an Alert:
 ```bash
 curl -X POST http://localhost:5000/ingest \
   -H "Content-Type: application/json" \
@@ -300,17 +268,20 @@ curl -X POST http://localhost:5000/ingest \
   -d '{"alert_name": "Test Alert", "severity": "high", "description": "Test"}'
 ```
 
-### Get Alerts:
+**Get alerts:**
+
 ```bash
 curl http://localhost:5000/alerts
 ```
 
-### Get RAG Stats:
+**Get RAG stats:**
+
 ```bash
 curl http://localhost:5000/api/rag/stats
 ```
 
-### Update Alert Status:
+**Update alert status:**
+
 ```bash
 curl -X PATCH http://localhost:5000/api/alerts/uuid-here \
   -H "Content-Type: application/json" \
