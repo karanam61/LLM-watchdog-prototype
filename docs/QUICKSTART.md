@@ -33,7 +33,7 @@ npm run dev
 
 Or use the launcher:
 ```bash
-python start.py
+python scripts/utilities/master_launch.py
 ```
 
 ## Generate Test Data
