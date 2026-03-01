@@ -166,7 +166,7 @@ const AnalystDashboard = () => {
             // Pre-fetch all logs in parallel for instant switching
             const alert = alerts.find(a => a.id === id);
             if (alert) {
-                ['process', 'network', 'file'].forEach(type => {
+                ['process', 'network', 'file', 'windows'].forEach(type => {
                     fetchInvestigationLogs(alert, type);
                 });
             }
@@ -176,14 +176,13 @@ const AnalystDashboard = () => {
     const fetchInvestigationLogs = async (alert, type) => {
         setLoadingLogs(true);
         try {
-            // FIXED: Using alert_id as verified by backend schema
             let url = `/api/logs?type=${type}&alert_id=${alert.id}`;
-
             const res = await api.get(url);
-            const data = res.data;
+            const data = Array.isArray(res.data) ? res.data : [];
             setLogs(prev => ({ ...prev, [type]: data }));
         } catch (e) {
             console.error("Failed to fetch logs", e);
+            setLogs(prev => ({ ...prev, [type]: [] }));
         } finally {
             setLoadingLogs(false);
         }
@@ -329,7 +328,7 @@ const AnalystDashboard = () => {
                                         >
                                             {/* Log Tabs */}
                                             <div className="flex border-b border-slate-800 px-6 pt-4 gap-4">
-                                                {['summary', 'feedback', 'process', 'network', 'file', 'notes'].map(tab => (
+                                                {['summary', 'feedback', 'process', 'network', 'file', 'windows', 'notes'].map(tab => (
                                                     <button
                                                         key={tab}
                                                         onClick={() => {
@@ -349,6 +348,7 @@ const AnalystDashboard = () => {
                                                         {tab === 'summary' ? 'Analysis Summary' : 
                                                          tab === 'feedback' ? <><MessageSquare size={14} /> Feedback</> :
                                                          tab === 'notes' ? <><FileText size={14} /> Notes</> : 
+                                                         tab === 'windows' ? 'Windows Events' :
                                                          `${tab} Logs`}
                                                     </button>
                                                 ))}
@@ -393,6 +393,62 @@ const AnalystDashboard = () => {
                                                                 </div>
                                                             </div>
 
+                                                            {/* AI Confidence & Knowledge Level */}
+                                                            {alert.ai_confidence && (
+                                                                <div className="flex gap-3">
+                                                                    <div className="flex-1 bg-slate-900/50 rounded-lg p-3 border border-slate-800">
+                                                                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">AI Confidence</div>
+                                                                        <div className="flex items-center gap-3">
+                                                                            <span className={`text-2xl font-bold ${
+                                                                                alert.ai_confidence >= 0.8 ? 'text-green-400' :
+                                                                                alert.ai_confidence >= 0.5 ? 'text-yellow-400' : 'text-red-400'
+                                                                            }`}>
+                                                                                {(alert.ai_confidence * 100).toFixed(0)}%
+                                                                            </span>
+                                                                            <div className="flex-1 bg-slate-800 rounded-full h-2">
+                                                                                <div className={`h-2 rounded-full ${
+                                                                                    alert.ai_confidence >= 0.8 ? 'bg-green-500' :
+                                                                                    alert.ai_confidence >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'
+                                                                                }`} style={{ width: `${alert.ai_confidence * 100}%` }} />
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    {(() => {
+                                                                        const noveltyEvidence = Array.isArray(alert.ai_evidence) && alert.ai_evidence.find(e => typeof e === 'string' && e.includes('Novelty Assessment:'));
+                                                                        const level = noveltyEvidence ? noveltyEvidence.split('Novelty Assessment:')[1]?.trim().split(' ')[0] : null;
+                                                                        return level ? (
+                                                                            <div className={`flex-1 rounded-lg p-3 border ${
+                                                                                level === 'NOVEL' ? 'bg-purple-500/10 border-purple-500/30' :
+                                                                                level === 'PARTIAL' ? 'bg-yellow-500/10 border-yellow-500/30' :
+                                                                                'bg-green-500/10 border-green-500/30'
+                                                                            }`}>
+                                                                                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Knowledge Level</div>
+                                                                                <span className={`text-sm font-bold ${
+                                                                                    level === 'NOVEL' ? 'text-purple-400' :
+                                                                                    level === 'PARTIAL' ? 'text-yellow-400' : 'text-green-400'
+                                                                                }`}>{level}</span>
+                                                                                <p className="text-xs text-slate-500 mt-1">
+                                                                                    {level === 'NOVEL' ? 'Never seen before — human review recommended' :
+                                                                                     level === 'PARTIAL' ? 'Partially matches known patterns' :
+                                                                                     'Matches known attack/benign patterns'}
+                                                                                </p>
+                                                                            </div>
+                                                                        ) : null;
+                                                                    })()}
+                                                                </div>
+                                                            )}
+
+                                                            {/* Recommendation */}
+                                                            {alert.ai_recommendation && (
+                                                                <div className="bg-slate-900/50 rounded-lg p-4 border border-amber-500/20">
+                                                                    <div className="flex items-center gap-2 mb-2">
+                                                                        <AlertTriangle size={14} className="text-amber-400" />
+                                                                        <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Recommended Actions</span>
+                                                                    </div>
+                                                                    <p className="text-sm text-slate-300 leading-relaxed">{alert.ai_recommendation}</p>
+                                                                </div>
+                                                            )}
+
                                                             <div className="flex items-center gap-3 pt-4">
                                                                 <button
                                                                     className="glass-button bg-cyan-500/10 text-cyan-400 border border-cyan-500/50 px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium hover:bg-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.1)]"
@@ -407,7 +463,7 @@ const AnalystDashboard = () => {
                                                                     <CheckCircle size={16} className="inline mr-2" />
                                                                     Close Alert
                                                                 </button>
-                                                                {alert.ai_verdict === 'ERROR' && (
+                                                                {alert.ai_verdict && (
                                                                     <button
                                                                         className="glass-button bg-purple-500/10 text-purple-400 border border-purple-500/50 px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium hover:bg-purple-500/20"
                                                                         onClick={(e) => handleReanalyze(alert.id, e)}
@@ -592,6 +648,7 @@ const AnalystDashboard = () => {
                                                                             {activeLogTab === 'process' && <><th className="px-4 py-3">Process</th><th className="px-4 py-3">Command / Parent</th></>}
                                                                             {activeLogTab === 'network' && <><th className="px-4 py-3">Source</th><th className="px-4 py-3">Destination</th><th className="px-4 py-3">Protocol</th></>}
                                                                             {activeLogTab === 'file' && <><th className="px-4 py-3">Action</th><th className="px-4 py-3">File Path</th><th className="px-4 py-3">Process</th></>}
+                                                                            {activeLogTab === 'windows' && <><th className="px-4 py-3">Event ID</th><th className="px-4 py-3">Message</th><th className="px-4 py-3">User</th></>}
                                                                         </tr>
                                                                     </thead>
                                                                     <tbody className="divide-y divide-slate-800">
@@ -625,6 +682,18 @@ const AnalystDashboard = () => {
                                                                                         <td className="px-4 py-3 font-bold text-white">{log.action}</td>
                                                                                         <td className="px-4 py-3 font-mono text-xs text-slate-400">{log.file_path}</td>
                                                                                         <td className="px-4 py-3 text-cyan-400">{log.process_name}</td>
+                                                                                    </>
+                                                                                )}
+
+                                                                                {/* Windows Event Columns */}
+                                                                                {activeLogTab === 'windows' && (
+                                                                                    <>
+                                                                                        <td className="px-4 py-3 font-bold text-amber-400">{log.event_id}</td>
+                                                                                        <td className="px-4 py-3 font-mono text-xs text-slate-400">
+                                                                                            <div className="text-slate-300 mb-1">{log.event_type}</div>
+                                                                                            {log.event_message}
+                                                                                        </td>
+                                                                                        <td className="px-4 py-3 text-cyan-400">{log.username}</td>
                                                                                     </>
                                                                                 )}
                                                                             </tr>

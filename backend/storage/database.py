@@ -143,7 +143,9 @@ def store_alert(parsed_alert, mitre_technique, severity_class):
         'timestamp': parsed_alert.get('timestamp'),
         'description': parsed_alert.get('description'),
         'mitre_technique': mitre_technique,
-        'severity_class': severity_class
+        'severity_class': severity_class,
+        'hostname': parsed_alert.get('hostname'),
+        'username': parsed_alert.get('username'),
     }
     
     response = None
@@ -335,7 +337,14 @@ def update_alert_with_ai_analysis(alert_id, ai_result):
             'ai_processing_pipeline': ai_result.get('processing_pipeline', {}),
             'ai_model_used': ai_result.get('metadata', {}).get('model_used', 'unknown'),
             'ai_processing_time': ai_result.get('metadata', {}).get('processing_time', 0),
-            'ai_cost': ai_result.get('metadata', {}).get('cost', 0)
+            'ai_cost': ai_result.get('metadata', {}).get('cost', 0),
+            # Knowledge Confidence fields
+            'ai_knowledge_level': ai_result.get('knowledge_level'),
+            'ai_confidence_ceiling': ai_result.get('confidence_ceiling'),
+            'ai_human_review_required': ai_result.get('human_review_required', False),
+            'ai_missing_context': ai_result.get('missing_context', []),
+            # Transparency & hypothesis fields
+            'ai_transparency': ai_result.get('transparency', {}),
         }
         
         # Try to include all enhanced fields first

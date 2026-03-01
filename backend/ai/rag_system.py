@@ -755,7 +755,23 @@ WHEN BENIGN: Clearly state "This is normal administrative activity because..." o
     {"step": 5, "question": "Q6-Q7 Business/Attack", "finding": "Business justification check", "interpretation": "Final determination"}
   ],
   "reasoning": "300+ char synthesis connecting all 7 investigation answers. For BENIGN: explain the legitimate business activity. For MALICIOUS: describe the attack chain. Reference specific log IDs.",
-  "recommendation": "Specific actionable steps. For BENIGN: suggest tuning rules. For MALICIOUS: containment steps. For SUSPICIOUS: what to investigate further."
+  "recommendation": "Specific actionable steps. For BENIGN: suggest tuning rules. For MALICIOUS: containment steps. For SUSPICIOUS: what to investigate further.",
+  
+  "transparency": {
+    "verdict_factors": {
+      "supporting": ["List 3+ factors that SUPPORT your verdict"],
+      "opposing": ["List factors that OPPOSE your verdict or create doubt"],
+      "decisive_factor": "The single most important factor in your decision"
+    },
+    "confidence_breakdown": {
+      "evidence_strength": "strong/moderate/weak - How conclusive is the evidence?",
+      "context_completeness": "complete/partial/limited - How much context did you have?",
+      "pattern_familiarity": "known/similar/novel - How familiar is this pattern?"
+    },
+    "alternative_hypothesis": "If your verdict is wrong, what's the most likely alternative explanation?",
+    "what_would_change_verdict": "What additional evidence would make you change your verdict?",
+    "uncertainty_sources": ["List specific areas where you are uncertain or making assumptions"]
+  }
 }""")
         context_parts.append("\nCRITICAL REQUIREMENTS FOR YOUR ANALYSIS:")
         context_parts.append("1. LOG REFERENCES ARE MANDATORY: You MUST reference specific log entries by their ID")

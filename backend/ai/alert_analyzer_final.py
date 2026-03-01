@@ -32,6 +32,15 @@ from backend.ai.observability import (  # Features 18-21
 )
 from backend.ai.rag_system import RAGSystem  # RAG context
 from backend.ai.osint_lookup import enrich_with_osint  # OSINT threat intel
+from backend.ai.novelty_detector import NoveltyDetector, assess_alert_novelty, KnowledgeLevel  # NEW: Knowledge Confidence
+
+# NEW: Hypothesis testing system - forces AI to consider both sides
+from backend.ai.hypothesis_analysis import (
+    build_hypothesis_prompt,
+    parse_hypothesis_response,
+    format_for_frontend
+)
+from backend.ai.structured_output import StructuredOutputParser, AlertAnalysisResponse
 from backend.storage.database import (
     query_process_logs,
     query_network_logs,
@@ -113,6 +122,19 @@ class AlertAnalyzer:
         self.audit = AuditLogger()
         self.health = HealthMonitor()
         self.metrics = MetricsCollector()
+        
+        # 6. Novelty Detection (Knowledge Confidence)
+        self.novelty_detector = NoveltyDetector(self.rag)
+        logger.info("   [OK] Novelty Detector Initialized")
+        
+        # 7. Hypothesis Testing Mode & Structured Output (NEW)
+        # Forces AI to consider both benign AND malicious hypotheses before deciding
+        self.hypothesis_mode = self.config.get('hypothesis_mode', True)
+        self.structured_parser = StructuredOutputParser()
+        if self.hypothesis_mode:
+            logger.info("   [OK] Hypothesis Testing Mode ENABLED - AI must consider both sides")
+        else:
+            logger.info("   [INFO] Hypothesis Testing Mode disabled - Using standard prompts")
         
         logger.info("   [OK] All AI Sub-systems Initialized")
 
@@ -462,6 +484,55 @@ class AlertAnalyzer:
                 explanation=f"Built {len(context)} character context combining RAG knowledge + forensic logs. This enriched prompt will be sent to Claude AI."
             )
 
+            # =================================================================
+            # NEW: NOVELTY DETECTION - Assess Knowledge Confidence
+            # =================================================================
+            # This determines how much historical context we have for this alert
+            # and sets appropriate confidence ceilings for the AI
+            
+            self._log_debug(
+                'AI',
+                'Novelty Detection - Knowledge Confidence Assessment',
+                {
+                    'purpose': 'Determine if alert is known, partial, or novel',
+                    'checks': ['MITRE mapping', 'Historical data', 'RAG matches', 'Log availability']
+                },
+                explanation="Assessing how much prior knowledge we have about this alert type. This enables honest confidence calibration."
+            )
+            
+            # Build RAG results summary for novelty detector
+            rag_results_summary = {
+                'mitre': {'found': bool(protected_dict.get('mitre_technique'))},
+                'historical': {'found': total_logs > 0},  # Proxy: if we have logs, we likely have history
+                'business_rules': {'found': True},  # Assume we have business rules
+                'attack_patterns': {'found': bool(protected_dict.get('mitre_technique'))}
+            }
+            
+            novelty_assessment = self.novelty_detector.assess(
+                protected_dict,
+                rag_results=rag_results_summary,
+                logs=logs
+            )
+            
+            self._log_debug(
+                'AI',
+                f'Novelty Assessment: {novelty_assessment.knowledge_level.value.upper()}',
+                {
+                    'knowledge_level': novelty_assessment.knowledge_level.value,
+                    'confidence_ceiling': f"{novelty_assessment.confidence_ceiling:.0%}",
+                    'signals': novelty_assessment.signals,
+                    'missing_context': novelty_assessment.missing_context,
+                    'recommendations': novelty_assessment.recommendations
+                },
+                explanation=f"Alert assessed as {novelty_assessment.knowledge_level.value.upper()}. "
+                           f"AI confidence should not exceed {novelty_assessment.confidence_ceiling:.0%}. "
+                           f"{'Human review required.' if novelty_assessment.knowledge_level == KnowledgeLevel.NOVEL else ''}"
+            )
+            
+            # Append novelty-aware instructions to context
+            if novelty_assessment.prompt_modifier:
+                context += "\n\n" + novelty_assessment.prompt_modifier
+                print(f"   [AI TRACE] Novelty: {novelty_assessment.knowledge_level.value} (ceiling: {novelty_assessment.confidence_ceiling:.0%})")
             
             # [*]
             # PHASE 4: AI ANALYSIS
@@ -684,17 +755,66 @@ class AlertAnalyzer:
             calibrated_confidence = (raw_confidence * 0.7) + (avg_factor * 0.3)
             calibrated_confidence = max(0.1, min(0.99, calibrated_confidence))  # Clamp to 0.1-0.99
             
+            # =================================================================
+            # KNOWLEDGE CONFIDENCE: Warn but don't hard-cap
+            # =================================================================
+            # Trust the AI's inference, but flag when context is limited
+            confidence_ceiling = novelty_assessment.confidence_ceiling
+            
+            # CHANGED: Don't hard-cap, use calibrated confidence directly
+            # The AI's general inference is valuable even for novel alerts
+            final_confidence = calibrated_confidence
+            
+            # Flag if confidence exceeds what our context would normally support
+            confidence_exceeds_context = calibrated_confidence > confidence_ceiling
+            
+            # Determine if human review is recommended (not forced)
+            human_review_required = novelty_assessment.knowledge_level in [
+                KnowledgeLevel.NOVEL, 
+                KnowledgeLevel.INSUFFICIENT
+            ]
+            
+            # Generate confidence warning message if applicable
+            confidence_warning = None
+            if confidence_exceeds_context:
+                confidence_warning = (
+                    f"AI confidence ({calibrated_confidence:.0%}) exceeds typical ceiling "
+                    f"for {novelty_assessment.knowledge_level.value} alerts ({confidence_ceiling:.0%}). "
+                    f"AI is using general inference beyond available context."
+                )
+            
             result = {
                 'success': True,
                 'verdict': analysis.get('verdict', 'suspicious'),
-                'confidence': round(calibrated_confidence, 2),
+                'confidence': round(final_confidence, 2),
                 'confidence_raw': raw_confidence,
+                'confidence_calibrated': round(calibrated_confidence, 2),
+                'confidence_ceiling': confidence_ceiling,
+                'confidence_exceeds_context': confidence_exceeds_context,
+                'confidence_warning': confidence_warning,
                 'confidence_factors': confidence_factors,
-                'evidence': analysis.get('evidence', []),
+                # Knowledge Confidence fields
+                'knowledge_level': novelty_assessment.knowledge_level.value,
+                'knowledge_signals': novelty_assessment.signals,
+                'missing_context': novelty_assessment.missing_context,
+                'human_review_required': human_review_required,
+                'knowledge_recommendations': novelty_assessment.recommendations,
+                # Standard fields
+                'evidence': analysis.get('evidence', []) + [
+                    f"Novelty Assessment: {novelty_assessment.knowledge_level.value.upper()} (confidence ceiling: {novelty_assessment.confidence_ceiling:.0%})"
+                ],
                 'investigation_answers': analysis.get('investigation_answers', {}),
                 'chain_of_thought': analysis.get('chain_of_thought', []),
                 'reasoning': analysis.get('reasoning', ''),
                 'recommendation': analysis.get('recommendation', ''),
+                # NEW: AI Transparency fields - explains WHY the AI made this decision
+                'transparency': analysis.get('transparency', {
+                    'verdict_factors': {'supporting': [], 'opposing': [], 'decisive_factor': 'Not available'},
+                    'confidence_breakdown': {'evidence_strength': 'unknown', 'context_completeness': 'unknown', 'pattern_familiarity': 'unknown'},
+                    'alternative_hypothesis': 'Not provided',
+                    'what_would_change_verdict': 'Not specified',
+                    'uncertainty_sources': []
+                }),
                 'osint_data': {
                     'summary': osint_data.get('summary', 'No OSINT data') if osint_data else 'No OSINT data',
                     'threat_score': osint_data.get('threat_score', 0) if osint_data else 0,
@@ -705,8 +825,8 @@ class AlertAnalyzer:
                 'processing_pipeline': {
                     'phase_1_security_gates': {'status': 'completed', 'checks': ['input_guard', 'schema_validation', 'pii_filter']},
                     'phase_2_optimization': {'status': 'completed', 'cache_hit': False, 'budget_approved': True},
-                    'phase_3_context': {'status': 'completed', 'logs_found': total_logs, 'rag_collections': 7, 'osint_enriched': bool(osint_data)},
-                    'phase_4_ai_analysis': {'status': 'completed', 'model': self.api_client.model, 'tokens': api_response.get('tokens', {})},
+                    'phase_3_context': {'status': 'completed', 'logs_found': total_logs, 'rag_collections': 7, 'osint_enriched': bool(osint_data), 'novelty_assessed': True},
+                    'phase_4_ai_analysis': {'status': 'completed', 'model': self.api_client.model, 'tokens': api_response.get('tokens', {}), 'knowledge_level': novelty_assessment.knowledge_level.value},
                     'phase_5_output_validation': {'status': 'completed', 'issues': []},
                     'phase_6_observability': {'status': 'completed'}
                 },
@@ -715,7 +835,9 @@ class AlertAnalyzer:
                     'processing_time': duration,
                     'cost': api_response.get('cost', 0),
                     'timestamp': datetime.now().isoformat(),
-                    'model_used': self.api_client.model
+                    'model_used': self.api_client.model,
+                    'knowledge_level': novelty_assessment.knowledge_level.value,
+                    'confidence_exceeds_context': confidence_exceeds_context
                 }
             }
             
@@ -786,11 +908,64 @@ class AlertAnalyzer:
         """
         Parse Claude's response Robustly.
         Handles: Raw JSON, Markdown '```json' blocks, and text-embedded JSON.
+        
+        In EDUCATIONAL MODE, also extracts hypothesis testing data for transparency.
         """
         import json
         import re
         
         text = ""
+        try:
+            # Extract text from response object
+            if hasattr(ai_result, 'content'):
+                text = ai_result.content[0].text
+            elif isinstance(ai_result, dict) and 'content' in ai_result:
+                text = ai_result['content']
+            else:
+                text = str(ai_result)
+            
+            # NEW: Try hypothesis response parsing first if in hypothesis mode
+            if self.hypothesis_mode:
+                logger.info("[HYPOTHESIS] Parsing hypothesis-testing response")
+                edu_result = parse_hypothesis_response(text)
+                
+                if edu_result['success']:
+                    data = edu_result['data']
+                    
+                    # Format for frontend with educational content
+                    frontend_data = format_for_frontend(edu_result)
+                    
+                    # Add educational transparency fields
+                    return {
+                        'verdict': data.get('verdict', 'suspicious'),
+                        'confidence': float(data.get('confidence', 0.5)),
+                        'evidence': [
+                            f.get('raw_observation', str(f)) 
+                            for f in data.get('fact_extraction', [])
+                        ],
+                        'chain_of_thought': data.get('log_education', []),
+                        'reasoning': data.get('winning_hypothesis', ''),
+                        'recommendation': data.get('recommendation', 'Manual review required'),
+                        # NEW: Hypothesis testing transparency
+                        'transparency': {
+                            'hypothesis_benign': data.get('hypothesis_benign', {}),
+                            'hypothesis_malicious': data.get('hypothesis_malicious', {}),
+                            'winning_hypothesis': data.get('winning_hypothesis', ''),
+                            'evidence_gap': data.get('evidence_gap', ''),
+                            'fact_extraction': data.get('fact_extraction', []),
+                            'log_education': data.get('log_education', [])
+                        },
+                        'hypothesis_mode': True
+                    }
+                else:
+                    logger.warning(f"[HYPOTHESIS] Parse failed, falling back: {edu_result.get('error')}")
+                    # Fall through to standard parsing
+        
+        except Exception as e:
+            logger.warning(f"[HYPOTHESIS] Exception in hypothesis parsing: {e}")
+            # Fall through to standard parsing
+        
+        # STANDARD PARSING (fallback or non-educational mode)
         try:
             # 1. Extract text from Anthropic object
             if hasattr(ai_result, 'content'):
@@ -834,6 +1009,9 @@ class AlertAnalyzer:
             parsed = json.loads(json_str)
             
             # 5. Normalize & Validate
+            # Extract transparency fields if present
+            transparency = parsed.get('transparency', {})
+            
             return {
                 'verdict': parsed.get('verdict', 'suspicious').lower(),
                 'confidence': float(parsed.get('confidence', 0.5)),
@@ -841,7 +1019,23 @@ class AlertAnalyzer:
                 'investigation_answers': parsed.get('investigation_answers', {}),
                 'chain_of_thought': parsed.get('chain_of_thought', []),
                 'reasoning': parsed.get('reasoning', text[:200] + "..."),
-                'recommendation': parsed.get('recommendation', 'Manual review required')
+                'recommendation': parsed.get('recommendation', 'Manual review required'),
+                # NEW: Transparency fields for explainable AI
+                'transparency': {
+                    'verdict_factors': transparency.get('verdict_factors', {
+                        'supporting': [],
+                        'opposing': [],
+                        'decisive_factor': 'Not specified'
+                    }),
+                    'confidence_breakdown': transparency.get('confidence_breakdown', {
+                        'evidence_strength': 'unknown',
+                        'context_completeness': 'unknown',
+                        'pattern_familiarity': 'unknown'
+                    }),
+                    'alternative_hypothesis': transparency.get('alternative_hypothesis', 'Not provided'),
+                    'what_would_change_verdict': transparency.get('what_would_change_verdict', 'Not specified'),
+                    'uncertainty_sources': transparency.get('uncertainty_sources', [])
+                }
             }
             
         except Exception as e:
@@ -861,6 +1055,38 @@ class AlertAnalyzer:
         # Convert to dict if it's a Pydantic model
         alert_dict = alert if isinstance(alert, dict) else alert.dict() if hasattr(alert, 'dict') else dict(alert)
         
+        # NEW: Use hypothesis testing prompt if enabled
+        # Forces AI to consider BOTH benign and malicious hypotheses before deciding
+        if self.hypothesis_mode:
+            logger.info("[HYPOTHESIS] Building hypothesis-testing prompt")
+            
+            # Get RAG context for additional knowledge
+            rag_context = ""
+            if self.rag:
+                try:
+                    rag_context = self.rag.build_context(alert_dict, logs)
+                except Exception as e:
+                    logger.warning(f"RAG failed in hypothesis mode: {e}")
+            
+            # Build hypothesis testing prompt
+            hypothesis_context = build_hypothesis_prompt(
+                alert=alert_dict,
+                logs=logs or {},
+                rag_context=rag_context[:3000] if rag_context else ""  # Limit RAG context
+            )
+            
+            # Add OSINT if available
+            if osint and osint.get('indicators'):
+                osint_section = "\n\n## OSINT THREAT INTELLIGENCE\n"
+                osint_section += f"**Summary:** {osint.get('summary', 'N/A')}\n"
+                osint_section += f"**Threat Score:** {osint.get('threat_score', 0):.0%}\n"
+                for indicator in osint.get('indicators', []):
+                    osint_section += f"- {indicator}\n"
+                hypothesis_context += osint_section
+            
+            return hypothesis_context
+        
+        # STANDARD MODE: Use original RAG-based context
         if self.rag:
             try:
                 # CRITICAL FIX: Pass logs to RAG so AI can analyze them

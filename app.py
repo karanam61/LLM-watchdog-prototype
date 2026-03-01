@@ -696,8 +696,8 @@ def get_debug_logs():
 
 def process_single_alert(alert, queue_type="standard"):
     """Process a single alert through AI analysis"""
+    alert_id = alert.get('alert_id') or alert.get('id')
     try:
-        alert_id = alert.get('alert_id') or alert.get('id')
         if not alert_id:
             return None
             
@@ -721,8 +721,6 @@ def process_single_alert(alert, queue_type="standard"):
                 try:
                     supabase.table('alerts').update({
                         'status': 'closed',
-                        'auto_closed': True,
-                        'auto_close_reason': f'AI: benign ({confidence:.0%})'
                     }).eq('id', alert_id).execute()
                     print(f"[AUTO-CLOSE] {alert_id[:8]}...")
                 except:
@@ -732,7 +730,6 @@ def process_single_alert(alert, queue_type="standard"):
         
     except Exception as e:
         print(f"[ERROR] Analysis failed: {e}")
-        # Store error in database
         try:
             update_alert_with_ai_analysis(alert.get('alert_id') or alert.get('id'), {
                 'verdict': 'ERROR',
@@ -743,6 +740,9 @@ def process_single_alert(alert, queue_type="standard"):
         except:
             pass
         return None
+    finally:
+        # Always release from dedup set after processing completes
+        qm.mark_done(alert_id)
 
 
 def priority_queue_worker():
@@ -751,11 +751,7 @@ def priority_queue_worker():
     while not shutdown_event.is_set():
         try:
             if qm.priority_queue:
-                with qm.lock:
-                    if qm.priority_queue:
-                        alert = qm.priority_queue.popleft()
-                    else:
-                        alert = None
+                alert = qm.get_next_alert()
                 if alert:
                     alert['alert_id'] = alert.get('alert_id') or alert.get('id')
                     process_single_alert(alert, "priority")
@@ -773,11 +769,7 @@ def standard_queue_worker():
     while not shutdown_event.is_set():
         try:
             if qm.standard_queue:
-                with qm.lock:
-                    if qm.standard_queue:
-                        alert = qm.standard_queue.popleft()
-                    else:
-                        alert = None
+                alert = qm.get_next_alert()
                 if alert:
                     alert['alert_id'] = alert.get('alert_id') or alert.get('id')
                     process_single_alert(alert, "standard")
@@ -981,7 +973,7 @@ def _old_background_queue_processor():
                 try:
                     # Check priority first (Interruption check)
                     if qm.priority_queue:
-                        print("⚠️ Priority Interruption! Switching back to Priority Queue.")
+                        print("[!] Priority Interruption! Switching back to Priority Queue.")
                         break # Break standard loop to handle priority
                         
                     alert = qm.get_next_alert()
@@ -1120,9 +1112,10 @@ def background_db_scanner():
                 print(f"[SCANNER] Error: {e}")
     print("[SHUTDOWN] Database scanner stopped")
 
-# Start database scanner thread
-scanner_thread = threading.Thread(target=background_db_scanner, daemon=True)
-scanner_thread.start()
+# Database scanner DISABLED - was re-queuing alerts every 30s causing infinite Claude calls.
+# Smart rehydration on startup handles missed alerts instead.
+# scanner_thread = threading.Thread(target=background_db_scanner, daemon=True)
+# scanner_thread.start()
 
 # =========================================================================
 # S3 SYNC WORKER - Periodic backup to S3 for failover
@@ -1846,6 +1839,35 @@ def get_ai_accuracy_stats():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/feedback/accuracy', methods=['GET'])
+def get_accuracy_report():
+    """
+    Get detailed AI accuracy metrics with breakdown by verdict type,
+    MITRE technique, and overconfidence detection.
+    """
+    from backend.ai.analyst_feedback import get_accuracy_metrics
+    
+    try:
+        days = request.args.get('days', 30, type=int)
+        metrics = get_accuracy_metrics(days=days)
+        return jsonify(metrics), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/feedback/weekly-report', methods=['GET'])
+def get_weekly_accuracy_report():
+    """Get human-readable weekly AI accuracy report."""
+    from backend.ai.analyst_feedback import AccuracyTracker
+    
+    try:
+        tracker = AccuracyTracker()
+        report = tracker.get_weekly_report()
+        return jsonify({"report": report}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/logs', methods=['GET'])
 def get_logs():
     """Fetch logs for investigation dashboard"""
@@ -1879,7 +1901,7 @@ def get_logs():
     if not alert_id:
          return jsonify({"error": "alert_id is required"}), 400
     
-    print(f"\n🔎 [LOG QUERY] Fetching {log_type} logs for Alert ID: {alert_id}")
+    print(f"\n[LOG QUERY] Fetching {log_type} logs for Alert ID: {alert_id}")
     
     try:
         data = []
@@ -2146,12 +2168,18 @@ def rehydrate_queue():
     try:
         print("\n" + "="*50, flush=True)
         print("[RELOAD] [REHYDRATION] STARTING...", flush=True)
-        print("   Checking for alerts where status != 'analyzed'", flush=True)
+        print("   Checking for recent unanalyzed alerts (last 24h, max 10)", flush=True)
         
-        # Broad query: Fetch anything where verdict is still pending (status might be null)
-        # CRITICAL FIX: neq('status', 'analyzed') excludes NULL status rows in SQL!
-        # We must simply check if ai_verdict is null.
-        response = supabase.table('alerts').select("*").is_('ai_verdict', 'null').limit(50).execute()
+        # Smart rehydration: only re-queue recent alerts, not the entire backlog
+        from datetime import datetime, timezone, timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        
+        response = (supabase.table('alerts').select("*")
+            .is_('ai_verdict', 'null')
+            .gte('created_at', cutoff)
+            .order('created_at', desc=True)
+            .limit(10)
+            .execute())
         
         if response.data:
             print(f"   [QUEUE] FOUND {len(response.data)} ORPHANED ALERTS!", flush=True)
@@ -2304,16 +2332,88 @@ def graceful_shutdown(signum=None, frame=None):
 # Register atexit for clean shutdown (signal handlers conflict with Flask debug mode)
 atexit.register(graceful_shutdown)
 
+def auto_seed_alerts():
+    """Seed a few realistic alerts after backend is ready. No Claude API needed."""
+    # Wait for backend to be ready
+    for _ in range(15):
+        try:
+            resp = requests.get("http://localhost:5000/health", timeout=2)
+            if resp.status_code == 200:
+                break
+        except Exception:
+            pass
+        time.sleep(2)
+    else:
+        print("[SEED] Backend not ready after 30s, skipping auto-seed")
+        return
+
+    alerts = [
+        {
+            "alert_name": "LSASS Memory Access - Credential Dumping",
+            "description": "mimikatz.exe accessed lsass.exe memory. Process spawned from cmd.exe with encoded PowerShell parent. Outbound connection to 185.220.101.45:443 detected immediately after execution.",
+            "severity": "critical",
+            "hostname": "FINANCE-LAPTOP-01",
+            "username": "john.doe",
+            "source_ip": "10.20.1.45",
+            "dest_ip": "185.220.101.45",
+            "mitre_technique": "T1003.001"
+        },
+        {
+            "alert_name": "PowerShell Script Execution",
+            "description": "powershell.exe executed Get-ADUser cmdlet to query Active Directory. Executed by IT admin during business hours from IT department workstation.",
+            "severity": "medium",
+            "hostname": "IT-ADMIN-WORKSTATION",
+            "username": "sarah.smith",
+            "source_ip": "10.20.2.10",
+            "mitre_technique": "T1059.001"
+        },
+        {
+            "alert_name": "Periodic Outbound Beaconing Detected",
+            "description": "rundll32.exe making HTTP requests every 60 seconds to random subdomains of suspicious .xyz domain. Payload contains base64 encoded system information.",
+            "severity": "high",
+            "hostname": "HR-DESKTOP-03",
+            "username": "mike.johnson",
+            "source_ip": "10.20.4.23",
+            "dest_ip": "45.142.212.61",
+            "mitre_technique": "T1071.001"
+        },
+    ]
+
+    print("\n" + "="*60)
+    print("[SEED] Sending 3 realistic alerts to pipeline...")
+    print("="*60)
+
+    for i, alert in enumerate(alerts, 1):
+        try:
+            resp = requests.post(
+                "http://localhost:5000/ingest",
+                json=alert,
+                headers={"Content-Type": "application/json"},
+                timeout=10
+            )
+            status = "OK" if resp.status_code == 200 else f"ERR {resp.status_code}"
+            print(f"  [{i}/3] {alert['alert_name'][:45]} -> {status}")
+            time.sleep(2)
+        except Exception as e:
+            print(f"  [{i}/3] {alert['alert_name'][:45]} -> FAILED: {e}")
+
+    print("[SEED] Done. Alerts queued for AI analysis.\n")
+
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("AI-SOC WATCHDOG - STARTING SERVER")
     print("="*60)
     print(f"Backend: http://localhost:5000")
     print(f"Frontend: http://localhost:5173")
+    print(f"Auto-seed: 3 alerts will be sent after server is ready")
     print("="*60 + "\n")
-    
+
+    seed_thread = threading.Thread(target=auto_seed_alerts, daemon=True)
+    seed_thread.start()
+
     try:
-        app.run(host='0.0.0.0', port=5000, debug=True)
+        app.run(host='0.0.0.0', port=5000, debug=False)
     except KeyboardInterrupt:
         graceful_shutdown()
     finally:

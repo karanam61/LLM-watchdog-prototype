@@ -53,9 +53,10 @@ class QueueManager:
     def __init__(self):
         self.priority_queue = deque()
         self.standard_queue = deque()
+        self.queued_ids = set()
         self.lock = threading.Lock()
         
-        print("[OK] Queue Manager initialized (Thread-Safe)")
+        print("[OK] Queue Manager initialized (Thread-Safe + Dedup)")
         print(f"  Priority threshold: {PRIORITY_QUEUE_THRESHOLD}")
     
     def route_alert(self, alert, severity_class, tracker=None):
@@ -108,8 +109,15 @@ class QueueManager:
         alert['risk_score'] = risk_score
         alert['severity_class'] = severity_class
         
-        # Thread-safe routing
+        # Thread-safe routing with dedup
         with self.lock:
+            alert_id = alert.get('alert_id') or alert.get('id')
+            if alert_id and alert_id in self.queued_ids:
+                print(f"[QUEUE TRACE] [DEDUP] Skipping {alert_id[:12]}... (already queued)")
+                return
+            if alert_id:
+                self.queued_ids.add(alert_id)
+
             # Route based on risk threshold
             if risk_score >= PRIORITY_QUEUE_THRESHOLD:
                 print(f"[QUEUE TRACE] [*] Routing to PRIORITY Queue (Risk: {risk_score:.1f})")
@@ -140,24 +148,28 @@ class QueueManager:
         with self.lock:
             if self.priority_queue:
                 alert = self.priority_queue.popleft()
+                # Keep ID in queued_ids until mark_done() is called
                 print(f"[*] Retrieved from PRIORITY queue")
                 print(f"   Alert: {alert.get('alert_name', 'Unknown')}")
-                print(f"   Risk score: {alert.get('risk_score', 0):.1f}")
                 print(f"   Remaining in priority: {len(self.priority_queue)}")
-                print(f"[QUEUE TRACE] [PRIORITY] Dequeued PRIORITY Item: {alert.get('alert_name')}")
                 return alert
             
             elif self.standard_queue:
                 alert = self.standard_queue.popleft()
+                # Keep ID in queued_ids until mark_done() is called
                 print(f"[*] Retrieved from STANDARD queue")
                 print(f"   Alert: {alert.get('alert_name', 'Unknown')}")
-                print(f"   Risk score: {alert.get('risk_score', 0):.1f}")
                 print(f"   Remaining in standard: {len(self.standard_queue)}")
-                print(f"[QUEUE TRACE] [*] Dequeued STANDARD Item: {alert.get('alert_name')}")
                 return alert
             
             else:
                 return None
+    
+    def mark_done(self, alert_id):
+        """Remove alert from dedup set after processing completes."""
+        if alert_id:
+            with self.lock:
+                self.queued_ids.discard(alert_id)
     
     def process_standard_queue(self, wait_seconds=120):
         """
