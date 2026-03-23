@@ -507,11 +507,133 @@ The state machine is "done" when:
 - [ ] Flood queue to exhaust API budget
 - [ ] Test circuit breaker under load
 
-### AppSec (Module 15)
+### AppSec — OWASP Top 10 Applied To Sentinel
+
+Every vulnerability class tested systematically against Sentinel's actual attack surface. Not generic testing — every test case written specifically for how Sentinel works.
+
+**Core Pipeline (existing):**
 - [ ] Semgrep SAST engine in GitHub Actions
 - [ ] Snyk dependency vulnerability scanning
 - [ ] OWASP ZAP dynamic testing against API endpoints
 - [ ] Block PR merge on critical findings
+
+#### A01 — Broken Access Control
+
+Sentinel specific attack surface:
+- [ ] Can an unauthenticated caller POST to /ingest and inject alerts?
+- [ ] Can Triage Agent access Investigation Agent's data directly?
+- [ ] Can a low-privilege role read Verdict Agent outputs it should not see?
+- [ ] Can the Policy Engine be called directly bypassing Verdict Agent?
+- [ ] Horizontal escalation: can one analyst account access another's cases?
+- [ ] Test Casbin policy exhaustively — every role against every resource against every action. Document what is permitted and what is denied.
+- Tool: Burp Suite for manual access control testing, custom scripts for agent boundary testing
+
+#### A02 — Cryptographic Failures
+
+Sentinel specific attack surface:
+- [ ] Are API keys ever written to logs in plaintext — search all log outputs
+- [ ] Is data at rest encrypted in RDS, S3, and Secrets Manager?
+- [ ] Are TLS certificates valid and properly configured on all endpoints?
+- [ ] Are weak cipher suites enabled on any endpoint?
+- [ ] Is sensitive alert data (PII, credentials found in alerts) masked in logs and traces?
+- [ ] Does OpenLLMetry accidentally log the full prompt including sensitive alert content?
+- Tool: testssl.sh for TLS audit, manual log review, AWS Config rules
+
+#### A03 — Injection
+
+Sentinel specific attack surface:
+- [ ] SQL injection: every database query in Sentinel — are parameters sanitized?
+- [ ] Prompt injection direct: malicious content in alert description field
+- [ ] Prompt injection indirect: poisoned RAG document that changes agent behavior
+- [ ] Command injection: any subprocess calls in Sentinel codebase?
+- [ ] OSINT injection: craft malicious IP reputation API response that injects instructions into Investigation Agent
+- [ ] Log injection: can an attacker write to your logs via alert content?
+- Tool: Semgrep for static detection, PyRIT for prompt injection, manual testing for SQL and command
+
+#### A04 — Insecure Design
+
+Sentinel specific attack surface:
+- [ ] Threat model review: is the 4-agent separation of duty actually enforced at the code level or just intended?
+- [ ] Can the Verdict Agent be instantiated without going through Triage first?
+- [ ] Is there a way to submit a pre-built evidence package directly to Policy Engine?
+- [ ] Are there any design assumptions that are not enforced by code?
+- [ ] Document every trust assumption in the architecture and verify each one is structurally enforced not just hoped for
+- Tool: Architecture review, code audit, threat modeling session using STRIDE
+
+#### A05 — Security Misconfiguration
+
+Sentinel specific attack surface:
+- [ ] Are default credentials changed everywhere — RDS, any admin interfaces?
+- [ ] Are unnecessary ports open on ECS tasks or security groups?
+- [ ] Are debug endpoints or stack traces exposed in production responses?
+- [ ] Are S3 buckets private by default?
+- [ ] Is CloudTrail logging all regions not just us-east-1?
+- [ ] Are container images running as non-root with read-only root filesystem?
+- [ ] Are unnecessary Linux capabilities dropped from all containers?
+- Tool: ScoutSuite, Prowler, AWS Config, Docker Bench Security
+
+#### A06 — Vulnerable and Outdated Components
+
+- [ ] Snyk scan on requirements.txt — zero high/critical unpatched CVEs
+- [ ] Trivy scan on all container images — zero high/critical unpatched CVEs
+- [ ] Dependabot or Renovate enabled for automated dependency updates
+- [ ] Python version current and supported
+- [ ] All base container images on current supported versions
+- Tool: Snyk, Trivy, GitHub Dependabot
+
+#### A07 — Identification and Authentication Failures
+
+Sentinel specific attack surface:
+- [ ] Are JWT tokens validated properly on every protected endpoint?
+- [ ] Is there session fixation risk on any authenticated endpoint?
+- [ ] Are failed authentication attempts logged and rate limited?
+- [ ] Can the /ingest endpoint be brute forced — is there rate limiting?
+- [ ] Are Casbin policy decisions logged with enough detail to detect credential stuffing attempts?
+- [ ] Does the phantom token proxy validate the fake token with constant time comparison?
+- Tool: Burp Suite, custom rate limit testing scripts
+
+#### A08 — Software and Data Integrity Failures
+
+Sentinel specific attack surface:
+- [ ] Are GitHub Actions workflows pinned to specific commit SHAs not just tags?
+- [ ] Is the CI/CD pipeline protected against supply chain attacks — can a malicious PR modify the pipeline itself?
+- [ ] Are container images signed and verified before deployment to ECS?
+- [ ] Are AGENTS.md and instruction files verified before agent ingestion? (Supply chain attestation — Phase 4 OS security track)
+- [ ] Can a compromised dependency modify agent behavior at runtime?
+- Tool: GitHub Actions security audit, Sigstore for image signing, nono attestation concepts applied
+
+#### A09 — Security Logging and Monitoring Failures
+
+Sentinel specific attack surface:
+- [ ] Is every authentication decision logged?
+- [ ] Is every Casbin policy decision logged with timestamp, subject, resource, action, and outcome?
+- [ ] Is every agent-to-agent data transfer logged with both sender and receiver?
+- [ ] Are logs tamper-evident — can an attacker modify logs to cover tracks?
+- [ ] Is there an alert on repeated Casbin denials — potential attack indicator?
+- [ ] Does CloudTrail cover every sensitive AWS API call?
+- [ ] Can you reconstruct a complete attack timeline from logs alone?
+- Tool: CloudTrail, CloudWatch, OpenLLMetry traces, manual log audit
+
+#### A10 — Server Side Request Forgery (SSRF)
+
+Most critical OWASP finding for Sentinel. Your agent makes outbound HTTP calls. Prompt injection can control those calls.
+
+Sentinel specific attack surface:
+- [ ] Attempt via prompt injection: make Sentinel's agent call 169.254.169.254 (AWS metadata service) and return IAM credentials in the response
+- [ ] Attempt via prompt injection: make agent call internal VPC services it should not reach
+- [ ] Attempt via OSINT tool: craft OSINT API endpoint that redirects to internal service
+- [ ] Verify phantom token proxy blocks all non-allowlisted destinations
+- [ ] Verify IMDSv2 enforced on all ECS tasks — token required, not just IP hop limit
+- [ ] Verify network allowlist proxy structurally prevents calls to RFC 1918 addresses, link-local, and cloud metadata endpoints
+- Tool: Custom prompt injection payloads, Burp Suite, manual verification of proxy allowlist enforcement
+
+#### OWASP Top 10 — Completion Gate
+
+Before Phase 5 begins:
+- [ ] All 10 categories tested against Sentinel specifically
+- [ ] Every finding documented with: vulnerability class, evidence, reproduction steps, fix implemented, retest confirmed
+- [ ] OWASP Top 10 mapping added to GRC_MAPPING.md
+- [ ] Summary published as portfolio artifact — "I ran OWASP Top 10 against my own AI SOC and here is what I found"
 
 ### Penetration Testing
 - [ ] Reconnaissance: Nmap scan of own deployment
@@ -519,6 +641,96 @@ The state machine is "done" when:
 - [ ] Exploitation: attempt real attacks
 - [ ] Detection: write Snort rules that detect attack patterns
 - [ ] Reporting: full pen test report
+
+### Penetration Testing — PTES Methodology
+
+Real pen testers follow a structured process. Every test you run against Sentinel follows this methodology. Not just tools — a mental model for how real attackers think.
+
+#### PTES — Penetration Testing Execution Standard
+
+**Stage 1 — Pre-Engagement**
+- [ ] Define scope: what is in scope, what is out of scope, what cannot be touched
+- [ ] Define success criteria: what does a successful attack look like
+- [ ] Document rules of engagement before touching anything
+- [ ] Threat profile: who would attack Sentinel in production? Nation state? Insider? Opportunistic attacker? Define the adversary.
+
+**Stage 2 — Intelligence Gathering**
+- [ ] Passive recon: what is publicly visible about your deployment without touching it
+- [ ] Active recon: Nmap scan of your own ECS deployment, enumerate open ports, services, versions
+- [ ] Cloud recon: what AWS resources are publicly discoverable via AWS APIs
+- [ ] Dependency mapping: what does Sentinel call outbound, what does it expose inbound
+- [ ] Document everything found before attempting any exploitation
+
+**Stage 3 — Threat Modeling**
+- [ ] Attack surface map: every input point, every outbound call, every trust boundary
+- [ ] STRIDE applied to Sentinel:
+  - Spoofing: can an attacker impersonate a trusted agent or data source?
+  - Tampering: can alert data be modified in transit or at rest?
+  - Repudiation: can an agent deny actions it took — is the audit trail complete?
+  - Information Disclosure: what sensitive data could leak and through what path?
+  - Denial of Service: how do you exhaust the system — queue flood, token burn?
+  - Elevation of Privilege: can Triage Agent acquire Verdict Agent capabilities?
+- [ ] Document threat model before exploitation
+
+**Stage 4 — Vulnerability Analysis**
+- [ ] Automated scanning: OWASP ZAP against all API endpoints
+- [ ] Manual analysis: review every finding from automated scan for false positives
+- [ ] OWASP Top 10 manual check against every input surface
+- [ ] Cloud misconfiguration audit: ScoutSuite or Prowler against AWS account
+- [ ] Container audit: Trivy against all images, docker bench security
+
+**Stage 5 — Exploitation**
+- [ ] Attempt real exploitation of every finding from Stage 4
+- [ ] Chain vulnerabilities: can you combine two low findings into one critical?
+- [ ] Document: what worked, what didn't, why each succeeded or failed
+- [ ] Stop at proof of concept — do not destroy data or infrastructure
+
+**Stage 6 — Post Exploitation**
+- [ ] If exploitation succeeded: how far can you move from that foothold?
+- [ ] Lateral movement: can you reach other agents from a compromised agent?
+- [ ] Persistence: could an attacker maintain access after the initial vector is closed?
+- [ ] Data access: what data is reachable from the compromised position?
+- [ ] Document blast radius of each successful exploitation
+
+**Stage 7 — Reporting**
+- [ ] Executive summary: what was found, what is the business risk, what is the priority order for fixing
+- [ ] Technical findings: vulnerability, evidence, reproduction steps, CVSS score, remediation
+- [ ] OWASP Agentic Top 10 mapping for every AI-specific finding
+- [ ] Retest confirmation: every fix verified with a second test pass
+- [ ] Publish as portfolio artifact
+
+### Network Level Attacks
+
+- [ ] Man in the middle: attempt TLS interception on agent-to-Claude API calls
+- [ ] TLS misconfiguration: test for weak cipher suites, certificate validation, certificate pinning gaps
+- [ ] DNS attacks: DNS rebinding against your proxy — can an attacker bypass the allowlist via DNS manipulation?
+- [ ] Traffic analysis: what can be inferred from encrypted traffic patterns — timing, size, frequency of API calls
+
+### Cloud Specific Attacks
+
+- [ ] IAM privilege escalation: map every IAM role in Sentinel, identify escalation paths using Cloudsplaining or Parliament
+- [ ] Metadata service SSRF: attempt to make Sentinel's agent call 169.254.169.254 via prompt injection — verify phantom token proxy blocks it — verify IMDSv2 is enforced on all ECS tasks
+- [ ] S3 misconfiguration: audit every S3 bucket for public access, ACL issues, versioning, logging
+- [ ] Container escape: attempt to break out of ECS task container boundary — verify read-only root filesystem holds
+- [ ] Lateral movement in ECS: if one task is compromised, can it reach other tasks in the cluster via task role credentials?
+- [ ] CloudTrail gaps: are there any actions an attacker could take that would NOT appear in CloudTrail?
+- [ ] Secrets Manager: verify no secrets accessible without explicit IAM permission — attempt access from agent role that should not have it
+
+### Tools For Pen Testing Track
+
+| Tool | Purpose | When Used |
+|------|---------|-----------|
+| Nmap | Network reconnaissance, port scanning | Stage 2 |
+| OWASP ZAP | Dynamic application security testing | Stage 4 |
+| Burp Suite Community | Manual HTTP interception and testing | Stage 4-5 |
+| Metasploit | Exploitation framework | Stage 5 |
+| Snort | Write and test detection rules | Stage 6 |
+| ScoutSuite | AWS cloud security auditing | Stage 4 |
+| Cloudsplaining | IAM privilege escalation analysis | Stage 4 |
+| Prowler | AWS security best practices audit | Stage 4 |
+| Trivy | Container and dependency scanning | Stage 4 |
+| Docker Bench | Container runtime security audit | Stage 4 |
+| Wireshark | Network traffic analysis | Stage 4-5 |
 
 ---
 
@@ -578,6 +790,7 @@ Runs throughout. Theory from AGENTIC_AI_SECURITY.md, practice applied to the mul
 | Context Engineering | Phase 1 — prompt consistency |
 | Post-Quantum Crypto | Research only |
 | OS Security Primitives — nono + OpenShell | Phase 1 (TCB + fail-secure + phantom token) → Phase 1.5 (Landlock + seccomp static) → Phase 2 (seccomp-notify + capability refactor) → Phase 4 (attestation + threat model) |
+| GRC & Compliance Mapping | Runs throughout all phases. One entry added per module as it is built. Produces GRC_MAPPING.md by end of Phase 5. |
 
 ### OS Security Primitives Track
 
@@ -623,6 +836,65 @@ Runs parallel to all phases. Each concept is learned when the architecture is re
 
 - [ ] TOCTOU Audit
   Audit all RAG retrieval and file operations. Implement check-then-verify pattern. Document every place check and use are separated by time or async operations.
+
+### GRC Credibility Track
+
+Goal: Enough GRC knowledge to be credible in conversations with CISOs, compliance teams, and auditors. Not a GRC specialist track. A translation layer between what you build and the language regulators speak.
+
+#### The Frameworks You Need To Know
+
+| Framework | What It Covers | When You Reference It |
+|-----------|---------------|----------------------|
+| NIST AI RMF | Govern, Map, Measure, Manage — AI risk lifecycle | Every AI decision in Sentinel |
+| EU AI Act | Risk tiers, obligations for high-risk AI | SOC AI qualifies as high-risk |
+| NIST CSF 2.0 | Identify, Protect, Detect, Respond, Recover | Cybersecurity baseline |
+| SOC 2 Type II | Security, availability, confidentiality | Enterprise customer requirement |
+| ISO 27001 | Information security management | International enterprise standard |
+| OWASP Agentic Top 10 | AI agent specific risks | Already in roadmap |
+
+Study method: one framework per week, one hour only. Read the executive summary not the full document. Map it to Sentinel immediately after reading.
+
+#### The Five CISO Questions
+
+Answer these about Sentinel before Phase 2:
+
+1. Does it reduce workload or just restate what the SIEM already told you?
+2. Does it work across your entire stack?
+3. Can it explain its reasoning with an evidence chain an auditor can review?
+4. What happens when it is wrong?
+5. What data does it actually see?
+
+Deliverable: One paragraph answer per question written in SENTINEL_STATUS.md before Phase 2 begins. Updated after each phase.
+
+#### GRC_MAPPING.md — Built Incrementally
+
+Create GRC_MAPPING.md in repo root. One entry added every time a module or security control is completed.
+
+Entry format:
+- What was built
+- NIST AI RMF function it satisfies
+- NIST CSF category it satisfies
+- EU AI Act article it addresses
+- SOC 2 trust criteria it satisfies
+- Evidence produced
+
+Example entry:
+- What: OpenLLMetry on all Claude calls
+- NIST AI RMF: Measure 2.5 — AI system outputs monitored for performance
+- NIST CSF: DE.CM-7 — monitoring for unauthorized activity
+- EU AI Act: Article 9 — risk management system logging
+- SOC 2: CC7.2 — system monitoring
+- Evidence: Traces in CloudWatch, retained 90 days
+
+#### GRC Translation Practice
+
+Once per week as part of daily practice. Take one technical thing you built and translate it into a sentence a board member understands.
+
+Format:
+- Technical: what it is
+- Risk it mitigates: what goes wrong without it
+- Regulatory relevance: which framework requires it
+- Business consequence: cost if audited without it
 
 ---
 
