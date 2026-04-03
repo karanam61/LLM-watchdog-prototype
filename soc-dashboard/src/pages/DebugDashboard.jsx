@@ -57,24 +57,30 @@ const DebugDashboard = () => {
     }, [paused, selectedCategory, searchTerm, autoScroll]);
 
     const getStatusColor = (status) => {
-        if (status === 'error') return 'text-red-500 bg-red-500/10 border-red-500/30';
-        if (status === 'warning') return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/30';
-        return 'text-green-500 bg-green-500/10 border-green-500/30';
+        if (status === 'error') return 'text-status-error border-status-error/40';
+        if (status === 'warning') return 'text-status-warn border-status-warn/40';
+        return 'text-status-live border-status-live/40';
+    };
+
+    const getStatusBg = (status) => {
+        if (status === 'error') return 'bg-status-error/5';
+        if (status === 'warning') return 'bg-status-warn/5';
+        return 'bg-status-live/5';
     };
 
     const getCategoryColor = (category) => {
         const colors = {
-            'API': 'text-cyan-400',
-            'FUNCTION': 'text-blue-400',
-            'WORKER': 'text-purple-400',
-            'AI': 'text-pink-400',
-            'DATABASE': 'text-green-400',
-            'SECURITY': 'text-red-400',
-            'RAG': 'text-orange-400',
-            'QUEUE': 'text-indigo-400',
-            'ERROR': 'text-red-500'
+            'API': 'text-cyber-400',
+            'FUNCTION': 'text-steel-500',
+            'WORKER': 'text-[#a78bfa]',
+            'AI': 'text-[#f472b6]',
+            'DATABASE': 'text-status-live',
+            'SECURITY': 'text-threat-critical',
+            'RAG': 'text-threat-high',
+            'QUEUE': 'text-[#818cf8]',
+            'ERROR': 'text-threat-critical'
         };
-        return colors[category] || 'text-slate-400';
+        return colors[category] || 'text-sentinel-400';
     };
 
     return (
@@ -82,37 +88,41 @@ const DebugDashboard = () => {
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-mono font-bold text-green-500 flex items-center gap-2">
+                    <h1 className="text-2xl font-mono font-bold text-cyber-400 flex items-center gap-2">
                         <Terminal size={28} />
                         LIVE SYSTEM DEBUG
                     </h1>
-                    <p className="text-slate-500 text-sm font-mono mt-1">
-                        Real-time operational trace - every API call, function, worker action, and AI step
+                    <p className="text-sentinel-500 text-sm font-mono mt-1">
+                        Real-time operational trace — every API call, function, worker action, and AI step
                     </p>
                 </div>
 
                 <div className="flex gap-2 items-center">
                     {/* Auto-scroll toggle */}
-                    <label className="flex items-center gap-2 text-sm font-mono text-slate-400 cursor-pointer">
+                    <label className="flex items-center gap-2 text-sm font-mono text-sentinel-400 cursor-pointer select-none">
                         <input
                             type="checkbox"
                             checked={autoScroll}
                             onChange={(e) => setAutoScroll(e.target.checked)}
-                            className="rounded"
+                            className="rounded border-sentinel-600 bg-sentinel-900 text-cyber-500 focus:ring-cyber-500/30 focus:ring-offset-0"
                         />
                         AUTO_SCROLL
                     </label>
 
                     <button
                         onClick={() => setPaused(!paused)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-mono border ${paused ? 'border-yellow-500 text-yellow-500' : 'border-green-500 text-green-500 bg-green-500/10'}`}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-mono border transition-all duration-200 ${
+                            paused
+                                ? 'border-status-warn text-status-warn bg-status-warn/10'
+                                : 'border-cyber-500 text-cyber-400 bg-cyber-500/10 shadow-glow-cyber'
+                        }`}
                     >
                         {paused ? <Play size={14} /> : <Pause size={14} />}
                         {paused ? 'RESUME' : 'PAUSE'}
                     </button>
                     <button
                         onClick={() => setLogs([])}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded text-sm font-mono border border-slate-600 text-slate-400 hover:text-white"
+                        className="s-btn-ghost text-sm font-mono"
                     >
                         <Trash2 size={14} /> CLEAR
                     </button>
@@ -122,11 +132,11 @@ const DebugDashboard = () => {
             {/* Filters */}
             <div className="flex gap-4 items-center">
                 <div className="flex items-center gap-2">
-                    <Filter size={16} className="text-slate-500" />
+                    <Filter size={16} className="text-sentinel-500" />
                     <select
                         value={selectedCategory}
                         onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm font-mono text-slate-300 focus:outline-none focus:border-cyan-500"
+                        className="s-select text-sm font-mono !w-auto"
                     >
                         {categories.map(cat => (
                             <option key={cat} value={cat}>{cat.toUpperCase()}</option>
@@ -135,102 +145,127 @@ const DebugDashboard = () => {
                 </div>
 
                 <div className="flex-1 relative">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-sentinel-500 pointer-events-none" />
                     <input
                         type="text"
                         placeholder="Search operations..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded pl-10 pr-4 py-1.5 text-sm font-mono text-slate-300 focus:outline-none focus:border-cyan-500"
+                        className="s-input font-mono !pl-10"
                     />
                 </div>
 
-                <div className="text-sm font-mono text-slate-500">
+                <div className="text-sm font-mono text-sentinel-500 tabular-nums">
                     {logs.length} operations
                 </div>
             </div>
 
             {/* Log Terminal */}
-            <div className="flex-1 bg-black border border-green-900/50 rounded-lg p-4 overflow-auto font-mono text-xs relative shadow-[0_0_30px_rgba(34,197,94,0.1)] custom-scrollbar">
-                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-green-900/5 to-transparent pointer-events-none" />
-
-                {logs.length === 0 ? (
-                    <div className="text-slate-600 italic flex items-center gap-2">
-                        <AlertCircle size={16} />
-                        {paused ? 'Paused - No operations to display' : 'Waiting for operations...'}
+            <div className="flex-1 bg-sentinel-950 border border-sentinel-700 rounded-xl overflow-hidden shadow-glow-cyber flex flex-col">
+                {/* Fake title bar */}
+                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-sentinel-700 bg-sentinel-900/60 shrink-0">
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded-full bg-[#FF5F57]" />
+                        <div className="w-3 h-3 rounded-full bg-[#FEBC2E]" />
+                        <div className="w-3 h-3 rounded-full bg-[#28C840]" />
                     </div>
-                ) : (
-                    logs.map((log, idx) => (
-                        <div
-                            key={idx}
-                            className={`mb-2 p-2 border-l-2 ${getStatusColor(log.status)} border rounded hover:bg-slate-900/30 transition-colors`}
-                        >
-                            {/* Timestamp + Category + Status */}
-                            <div className="flex items-center gap-3 mb-1">
-                                <span className="text-slate-600 text-xs">
-                                    [{new Date(log.datetime).toLocaleTimeString('en-US', {
-                                        hour12: false,
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        second: '2-digit',
-                                        fractionalSecondDigits: 3
-                                    })}]
-                                </span>
-                                <span className={`font-bold px-2 py-0.5 rounded text-xs border ${getCategoryColor(log.category)} border-current/20 bg-current/5`}>
-                                    {log.category}
-                                </span>
-                                <span className="text-white font-semibold flex-1">
-                                    {log.operation}
-                                </span>
-                                {log.duration && (
-                                    <span className="text-cyan-500 text-xs">
-                                        {log.duration.toFixed(3)}s
-                                    </span>
-                                )}
-                                <span className={`text-xs uppercase font-bold ${log.status === 'error' ? 'text-red-500' : log.status === 'warning' ? 'text-yellow-500' : 'text-green-500'}`}>
-                                    {log.status}
-                                </span>
-                            </div>
-
-                            {/* Human-readable explanation */}
-                            {log.explanation && (
-                                <div className="text-slate-400 text-xs pl-4 mb-1">
-                                    {log.explanation}
-                                </div>
-                            )}
-
-                            {/* Details */}
-                            {log.details && Object.keys(log.details).length > 0 && (
-                                <div className="text-slate-500 text-xs pl-4 mt-1">
-                                    <details className="cursor-pointer">
-                                        <summary className="hover:text-cyan-500">Details</summary>
-                                        <pre className="mt-1 text-xs bg-slate-950/50 p-2 rounded overflow-x-auto">
-                                            {JSON.stringify(log.details, null, 2)}
-                                        </pre>
-                                    </details>
-                                </div>
-                            )}
+                    <span className="text-sentinel-400 text-xs font-mono tracking-wider ml-2">
+                        SENTINEL DEBUG STREAM
+                    </span>
+                    {!paused && (
+                        <div className="ml-auto flex items-center gap-1.5">
+                            <div className="s-dot-live animate-pulse" />
+                            <span className="text-2xs font-mono text-status-live">LIVE</span>
                         </div>
-                    ))
-                )}
-                <div ref={logsEndRef} />
+                    )}
+                </div>
+
+                {/* Log content */}
+                <div className="flex-1 p-4 overflow-auto font-mono text-xs s-scroll">
+                    {logs.length === 0 ? (
+                        <div className="text-sentinel-500 italic flex items-center gap-2 py-8 justify-center">
+                            <AlertCircle size={16} className="text-sentinel-600" />
+                            {paused ? 'Stream paused — no operations to display' : 'Waiting for operations...'}
+                        </div>
+                    ) : (
+                        logs.map((log, idx) => (
+                            <div
+                                key={idx}
+                                className={`mb-1.5 p-2.5 border-l-2 ${getStatusColor(log.status)} ${getStatusBg(log.status)} rounded-r-lg hover:bg-sentinel-900/50 transition-colors`}
+                            >
+                                {/* Timestamp + Category + Status */}
+                                <div className="flex items-center gap-3 mb-1">
+                                    <span className="text-sentinel-500 text-xs tabular-nums">
+                                        [{new Date(log.datetime).toLocaleTimeString('en-US', {
+                                            hour12: false,
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                            second: '2-digit',
+                                            fractionalSecondDigits: 3
+                                        })}]
+                                    </span>
+                                    <span className={`font-bold px-2 py-0.5 rounded text-2xs bg-sentinel-800 border border-sentinel-700 ${getCategoryColor(log.category)}`}>
+                                        {log.category}
+                                    </span>
+                                    <span className="text-sentinel-50 font-semibold flex-1">
+                                        {log.operation}
+                                    </span>
+                                    {log.duration && (
+                                        <span className="text-cyber-400 text-xs tabular-nums">
+                                            {log.duration.toFixed(3)}s
+                                        </span>
+                                    )}
+                                    <span className={`text-xs uppercase font-bold ${
+                                        log.status === 'error'
+                                            ? 'text-status-error'
+                                            : log.status === 'warning'
+                                                ? 'text-status-warn'
+                                                : 'text-status-live'
+                                    }`}>
+                                        {log.status}
+                                    </span>
+                                </div>
+
+                                {/* Human-readable explanation */}
+                                {log.explanation && (
+                                    <div className="text-sentinel-400 text-xs pl-4 mb-1">
+                                        {log.explanation}
+                                    </div>
+                                )}
+
+                                {/* Details */}
+                                {log.details && Object.keys(log.details).length > 0 && (
+                                    <div className="text-sentinel-500 text-xs pl-4 mt-1">
+                                        <details className="cursor-pointer">
+                                            <summary className="hover:text-cyber-400 transition-colors">Details</summary>
+                                            <pre className="mt-1 text-xs bg-sentinel-950 border border-sentinel-700/50 p-2 rounded-lg overflow-x-auto s-scroll text-sentinel-300">
+                                                {JSON.stringify(log.details, null, 2)}
+                                            </pre>
+                                        </details>
+                                    </div>
+                                )}
+                            </div>
+                        ))
+                    )}
+                    <div ref={logsEndRef} />
+                </div>
             </div>
 
             {/* Legend */}
-            <div className="flex gap-4 text-xs font-mono text-slate-500">
-                <span className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+            <div className="flex gap-4 text-xs font-mono text-sentinel-500">
+                <span className="flex items-center gap-1.5">
+                    <div className="s-dot-live" />
                     Success
                 </span>
-                <span className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                <span className="flex items-center gap-1.5">
+                    <div className="s-dot-warn" />
                     Warning
                 </span>
-                <span className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                <span className="flex items-center gap-1.5">
+                    <div className="s-dot-error" />
                     Error
                 </span>
-                <span className="ml-auto text-slate-600">
+                <span className="ml-auto text-sentinel-600">
                     Non-technical friendly explanations for every operation
                 </span>
             </div>

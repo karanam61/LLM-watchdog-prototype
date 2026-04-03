@@ -1,5 +1,5 @@
-
 import React from 'react';
+import { Shield, RefreshCcw, AlertTriangle } from 'lucide-react';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -19,20 +19,35 @@ class ErrorBoundary extends React.Component {
     render() {
         if (this.state.hasError) {
             return (
-                <div className="flex items-center justify-center h-screen w-full bg-gray-900 text-white">
-                    <div className="p-8 border border-red-500 rounded-lg bg-black/50 backdrop-blur-md max-w-lg">
-                        <h1 className="text-2xl font-bold text-red-500 mb-4">⚠️ System Error</h1>
-                        <p className="text-gray-300 mb-4">
-                            The AI-SOC Dashboard encountered a critical error.
-                        </p>
-                        <div className="bg-gray-800 p-4 rounded text-xs font-mono mb-4 overflow-auto max-h-40">
-                            {this.state.error && this.state.error.toString()}
+                <div className="flex items-center justify-center h-screen w-full bg-sentinel-950 text-sentinel-50 bg-grid">
+                    {/* Ambient glow */}
+                    <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-threat-critical/5 rounded-full blur-[120px]" />
+
+                    <div className="relative s-panel-elevated p-10 max-w-lg text-center">
+                        <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-threat-critical/10 border border-threat-critical/20 flex items-center justify-center">
+                            <AlertTriangle size={32} className="text-threat-critical" />
                         </div>
+
+                        <h1 className="text-2xl font-bold text-sentinel-50 mb-2">System Fault Detected</h1>
+                        <p className="text-sentinel-300 mb-6">
+                            The SENTINEL platform encountered a critical error. Diagnostic data has been captured.
+                        </p>
+
+                        {this.state.error && (
+                            <div className="bg-sentinel-950 border border-sentinel-700 rounded-lg p-4 mb-6 text-left">
+                                <div className="text-2xs font-semibold text-threat-critical uppercase tracking-wider mb-2">Error Trace</div>
+                                <pre className="text-xs font-mono text-sentinel-300 overflow-auto max-h-32 s-scroll">
+                                    {this.state.error.toString()}
+                                </pre>
+                            </div>
+                        )}
+
                         <button
                             onClick={() => window.location.reload()}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm font-semibold transition-colors"
+                            className="s-btn-primary gap-2"
                         >
-                            Reload System
+                            <RefreshCcw size={16} />
+                            Restart Platform
                         </button>
                     </div>
                 </div>
